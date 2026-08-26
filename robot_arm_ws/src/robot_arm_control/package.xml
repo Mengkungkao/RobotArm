@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>robot_arm_control</name>
+  <version>1.0.0</version>
+  <description>
+    Control layer of the robot_arm project: the ros2_control controller
+    configuration shared by simulation and hardware, the safety monitor node,
+    and the Python and C++ user APIs.
+  </description>
+  <maintainer email="mengkungkao@gmail.com">robot_arm maintainers</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>diagnostic_msgs</depend>
+  <depend>trajectory_msgs</depend>
+  <depend>controller_manager_msgs</depend>
+  <depend>robot_arm_msgs</depend>
+  <depend>robot_arm_interfaces</depend>
+
+  <!-- The C++ API is built only when MoveIt is present; the safety monitor,
+       the configuration and the Python API do not need it. -->
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>moveit_msgs</depend>
+  <depend>moveit_ros_planning_interface</depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>builtin_interfaces</exec_depend>
+  <exec_depend>shape_msgs</exec_depend>
+  <exec_depend>joint_trajectory_controller</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>velocity_controllers</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>robot_arm_description</exec_depend>
+  <exec_depend>robot_arm_moveit_config</exec_depend>
+
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

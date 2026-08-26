@@ -1,0 +1,59 @@
+# ============================================================================
+#  robot_arm - joint calibration.
+#
+#  Written by `ros2 run robot_arm_tools calibrate_joints` and read at start-up
+#  through the URDF.  Keep it under version control: it describes THIS machine.
+#
+#    zero_offset  : [rad] joint angle reported by the encoder when the joint is
+#                   mechanically at zero.  q_joint = direction * (q_raw - zero_offset)
+#    direction    : +1 / -1, sign of the joint relative to the URDF axis
+#    min_position : [rad] soft lower limit, must be inside the URDF limit
+#    max_position : [rad] soft upper limit, must be inside the URDF limit
+#    home_position: [rad] pose the arm is driven to by the homing routine
+#
+#  The driver refuses to command a joint outside [min_position, max_position],
+#  so these values are a real, enforced safety boundary and not documentation.
+# ============================================================================
+calibration:
+  joint_1:
+    zero_offset: 0.0
+    direction: 1
+    min_position: -3.1416
+    max_position: 3.1416
+    home_position: 0.0
+  joint_2:
+    zero_offset: 0.0
+    direction: 1
+    min_position: -2.0944
+    max_position: 2.0944
+    home_position: -0.4
+  joint_3:
+    zero_offset: 0.0
+    direction: 1
+    min_position: -2.6180
+    max_position: 2.6180
+    home_position: 0.9
+  joint_4:
+    zero_offset: 0.0
+    direction: 1
+    min_position: -3.1416
+    max_position: 3.1416
+    home_position: 0.0
+  joint_5:
+    zero_offset: 0.0
+    direction: 1
+    min_position: -2.0944
+    max_position: 2.0944
+    home_position: 1.0
+  joint_6:
+    zero_offset: 0.0
+    direction: 1
+    min_position: -3.1416
+    max_position: 3.1416
+    home_position: 0.0
+
+# Bookkeeping - updated by the calibration utility.
+metadata:
+  robot_serial: "UNSET"
+  calibrated_at: "never"
+  calibrated_by: "unknown"

@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>robot_arm_description</name>
+  <version>1.0.0</version>
+  <description>
+    URDF/Xacro description of the 6-DOF robot_arm: links, joints, inertias,
+    collision geometry, ros2_control interfaces and the Gazebo glue.
+    All mechanical values come from config/robot.yaml.
+  </description>
+  <maintainer email="mengkungkao@gmail.com">robot_arm maintainers</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>urdf</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>joint_state_publisher</exec_depend>
+  <exec_depend>joint_state_publisher_gui</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+
+  <!-- NOTE: this package is deliberately a leaf of the workspace dependency
+       graph - every other package depends on the description, so it must not
+       depend back on any of them.
+
+       The default values of the `hardware_config_file`,
+       `calibration_config_file` and `controllers_file` Xacro arguments do
+       point into robot_arm_hardware and robot_arm_control, but they are
+       resolved at expansion time and only when the corresponding backend is
+       selected (hardware_type:=real / gazebo).  A simulation-only or
+       description-only workspace expands the model without them. -->
+
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>urdfdom_py</test_depend>
+  <test_depend>xacro</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

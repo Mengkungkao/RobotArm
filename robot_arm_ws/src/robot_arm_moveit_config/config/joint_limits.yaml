@@ -1,0 +1,52 @@
+# ============================================================================
+#  Limits used by MoveIt for time parameterisation.
+#
+#  The velocity limits mirror robot_arm_description/config/robot.yaml (the
+#  URDF is the authority; a test in robot_arm_moveit_config fails if the two
+#  drift apart).  Acceleration and jerk limits do not exist in URDF at all, so
+#  they are defined here - they are what decides whether a trajectory is smooth
+#  enough for a geared arm to follow.
+# ============================================================================
+
+# Scaling applied when a request does not specify its own.  Conservative on
+# purpose: full speed on a real arm should be a deliberate choice.
+default_velocity_scaling_factor: 0.3
+default_acceleration_scaling_factor: 0.3
+
+joint_limits:
+  joint_1:
+    has_velocity_limits: true
+    max_velocity: 2.60
+    has_acceleration_limits: true
+    max_acceleration: 5.00
+    has_jerk_limits: false
+  joint_2:
+    has_velocity_limits: true
+    max_velocity: 2.20
+    has_acceleration_limits: true
+    max_acceleration: 4.00
+    has_jerk_limits: false
+  joint_3:
+    has_velocity_limits: true
+    max_velocity: 2.60
+    has_acceleration_limits: true
+    max_acceleration: 5.00
+    has_jerk_limits: false
+  joint_4:
+    has_velocity_limits: true
+    max_velocity: 3.20
+    has_acceleration_limits: true
+    max_acceleration: 7.00
+    has_jerk_limits: false
+  joint_5:
+    has_velocity_limits: true
+    max_velocity: 3.20
+    has_acceleration_limits: true
+    max_acceleration: 7.00
+    has_jerk_limits: false
+  joint_6:
+    has_velocity_limits: true
+    max_velocity: 3.20
+    has_acceleration_limits: true
+    max_acceleration: 8.00
+    has_jerk_limits: false

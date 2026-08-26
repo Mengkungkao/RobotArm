@@ -1,0 +1,9 @@
+# Energise / de-energise the drives.
+#
+# Disabling is always accepted.  Enabling is refused while the emergency stop
+# is engaged - releasing the e-stop is a deliberate, separate action.
+bool enable
+---
+bool success
+bool enabled                # state after the call
+string message

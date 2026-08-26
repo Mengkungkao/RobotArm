@@ -1,0 +1,19 @@
+# Mirrors what the MoveIt Setup Assistant would write, so that
+# MoveItConfigsBuilder("robot_arm", package_name="robot_arm_moveit_config")
+# finds the description and the SRDF.
+#
+# The URDF is expanded with hardware_type:=mock here: MoveIt only needs the
+# kinematics and the collision geometry, which are identical in every backend.
+# The launch files override the mapping so that the model MoveIt plans with
+# always matches the robot that is running.
+moveit_setup_assistant_config:
+  urdf:
+    package: robot_arm_description
+    relative_path: urdf/robot_arm.urdf.xacro
+    xacro_args: "hardware_type:=mock use_world_frame:=false"
+  srdf:
+    relative_path: config/robot_arm.srdf
+  package_settings:
+    author_name: robot_arm maintainers
+    author_email: mengkungkao@gmail.com
+    generated_timestamp: 1774483200

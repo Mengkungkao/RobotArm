@@ -1,0 +1,247 @@
+<?xml version="1.0"?>
+<!--
+  ==========================================================================
+   robot_arm - 6-DOF serial manipulator, links + joints only.
+  ==========================================================================
+
+   Every dimension, mass, limit and dynamic property is read from a YAML file
+   (default: robot_arm_description/config/robot.yaml).  Nothing mechanical is
+   hard-coded here, so re-targeting the model to a different machine is a
+   matter of editing one YAML file.
+
+   The kinematic chain is *derived* from the link lengths, which guarantees
+   that the joint origins can never fall out of sync with the geometry:
+
+     base_link -[j1:Z]- link_1 -[j2:Y]- link_2 -[j3:Y]- link_3
+               -[j4:Z]- link_4 -[j5:Y]- link_5 -[j6:Z]- link_6 -> tool0
+
+   Joints 4/5/6 form a spherical wrist whose centre is the origin of joint_5.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find robot_arm_description)/urdf/materials.xacro"/>
+  <xacro:include filename="$(find robot_arm_description)/urdf/inertials.xacro"/>
+
+  <!-- =====================================================================
+       Generic cylindrical link: visual + primitive collision + inertial.
+       The cylinder is extruded along +Z starting at the link origin, so the
+       child joint sits exactly at z = length.
+       ===================================================================== -->
+  <xacro:macro name="arm_link" params="name radius length mass material">
+    <link name="${name}">
+      <visual>
+        <origin xyz="0 0 ${length / 2.0}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${radius}" length="${length}"/>
+        </geometry>
+        <material name="${material}"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${length / 2.0}" rpy="0 0 0"/>
+        <geometry>
+          <!-- Primitive collision geometry on purpose: fast in Gazebo and
+               numerically well behaved for MoveIt self-collision checks. -->
+          <cylinder radius="${radius}" length="${length}"/>
+        </geometry>
+      </collision>
+      <xacro:cylinder_inertial mass="${mass}" radius="${radius}" length="${length}">
+        <origin xyz="0 0 ${length / 2.0}" rpy="0 0 0"/>
+      </xacro:cylinder_inertial>
+    </link>
+  </xacro:macro>
+
+  <!-- =====================================================================
+       Revolute joint driven from the YAML joint table.
+       ===================================================================== -->
+  <xacro:macro name="arm_joint" params="name parent child xyz spec">
+    <joint name="${name}" type="revolute">
+      <parent link="${parent}"/>
+      <child link="${child}"/>
+      <origin xyz="${xyz}" rpy="0 0 0"/>
+      <axis xyz="${spec['axis'][0]} ${spec['axis'][1]} ${spec['axis'][2]}"/>
+      <limit
+        lower="${spec['lower']}"
+        upper="${spec['upper']}"
+        velocity="${spec['velocity']}"
+        effort="${spec['effort']}"/>
+      <dynamics
+        damping="${spec['damping']}"
+        friction="${spec['friction']}"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- =====================================================================
+       The arm itself.
+       ===================================================================== -->
+  <xacro:macro name="robot_arm" params="prefix robot_config_file use_gripper_mount:=true">
+
+    <xacro:property name="cfg" value="${xacro.load_yaml(robot_config_file)}"/>
+    <xacro:property name="geom" value="${cfg['geometry']}"/>
+    <xacro:property name="mass" value="${cfg['mass']}"/>
+    <xacro:property name="jnt" value="${cfg['joints']}"/>
+    <xacro:property name="off" value="${cfg['offsets']}"/>
+    <xacro:property name="grip" value="${cfg['gripper_mount']}"/>
+
+    <!-- ================================================================ -->
+    <!-- Base                                                             -->
+    <!-- ================================================================ -->
+    <xacro:arm_link
+      name="${prefix}base_link"
+      radius="${geom['base']['radius']}"
+      length="${geom['base']['length']}"
+      mass="${mass['base']}"
+      material="arm_dark_grey"/>
+
+    <!-- ================================================================ -->
+    <!-- Joint 1 - base rotation                                          -->
+    <!-- ================================================================ -->
+    <xacro:arm_joint
+      name="${prefix}joint_1"
+      parent="${prefix}base_link"
+      child="${prefix}link_1"
+      xyz="0 0 ${geom['base']['length']}"
+      spec="${jnt['joint_1']}"/>
+    <xacro:arm_link
+      name="${prefix}link_1"
+      radius="${geom['link_1']['radius']}"
+      length="${geom['link_1']['length']}"
+      mass="${mass['link_1']}"
+      material="arm_orange"/>
+
+    <!-- ================================================================ -->
+    <!-- Joint 2 - shoulder                                               -->
+    <!-- ================================================================ -->
+    <xacro:arm_joint
+      name="${prefix}joint_2"
+      parent="${prefix}link_1"
+      child="${prefix}link_2"
+      xyz="0 ${off['shoulder_y']} ${geom['link_1']['length']}"
+      spec="${jnt['joint_2']}"/>
+    <xacro:arm_link
+      name="${prefix}link_2"
+      radius="${geom['link_2']['radius']}"
+      length="${geom['link_2']['length']}"
+      mass="${mass['link_2']}"
+      material="arm_grey"/>
+
+    <!-- ================================================================ -->
+    <!-- Joint 3 - elbow                                                  -->
+    <!-- ================================================================ -->
+    <xacro:arm_joint
+      name="${prefix}joint_3"
+      parent="${prefix}link_2"
+      child="${prefix}link_3"
+      xyz="0 ${off['elbow_y']} ${geom['link_2']['length']}"
+      spec="${jnt['joint_3']}"/>
+    <xacro:arm_link
+      name="${prefix}link_3"
+      radius="${geom['link_3']['radius']}"
+      length="${geom['link_3']['length']}"
+      mass="${mass['link_3']}"
+      material="arm_orange"/>
+
+    <!-- ================================================================ -->
+    <!-- Joint 4 - wrist rotation                                         -->
+    <!-- ================================================================ -->
+    <xacro:arm_joint
+      name="${prefix}joint_4"
+      parent="${prefix}link_3"
+      child="${prefix}link_4"
+      xyz="0 0 ${geom['link_3']['length']}"
+      spec="${jnt['joint_4']}"/>
+    <xacro:arm_link
+      name="${prefix}link_4"
+      radius="${geom['link_4']['radius']}"
+      length="${geom['link_4']['length']}"
+      mass="${mass['link_4']}"
+      material="arm_grey"/>
+
+    <!-- ================================================================ -->
+    <!-- Joint 5 - wrist pitch (this origin is the spherical wrist centre) -->
+    <!-- ================================================================ -->
+    <xacro:arm_joint
+      name="${prefix}joint_5"
+      parent="${prefix}link_4"
+      child="${prefix}link_5"
+      xyz="0 0 ${geom['link_4']['length']}"
+      spec="${jnt['joint_5']}"/>
+    <xacro:arm_link
+      name="${prefix}link_5"
+      radius="${geom['link_5']['radius']}"
+      length="${geom['link_5']['length']}"
+      mass="${mass['link_5']}"
+      material="arm_orange"/>
+
+    <!-- ================================================================ -->
+    <!-- Joint 6 - tool roll                                              -->
+    <!-- ================================================================ -->
+    <xacro:arm_joint
+      name="${prefix}joint_6"
+      parent="${prefix}link_5"
+      child="${prefix}link_6"
+      xyz="0 0 ${geom['link_5']['length']}"
+      spec="${jnt['joint_6']}"/>
+    <xacro:arm_link
+      name="${prefix}link_6"
+      radius="${geom['link_6']['radius']}"
+      length="${geom['link_6']['length']}"
+      mass="${mass['link_6']}"
+      material="arm_black"/>
+
+    <!-- ================================================================ -->
+    <!-- tool0 - the tool flange face; the planning end effector.          -->
+    <!-- Massless frame: keep it out of the dynamics.                      -->
+    <!-- ================================================================ -->
+    <link name="${prefix}tool0"/>
+    <joint name="${prefix}joint_tool0" type="fixed">
+      <parent link="${prefix}link_6"/>
+      <child link="${prefix}tool0"/>
+      <origin xyz="0 0 ${geom['link_6']['length'] + off['tool_z']}" rpy="0 0 0"/>
+    </joint>
+
+    <!-- ================================================================ -->
+    <!-- Optional gripper mounting interface.                             -->
+    <!-- A real gripper description can be attached to ${prefix}tool0     -->
+    <!-- (or to ${prefix}gripper_mount_link) from another Xacro file.     -->
+    <!-- ================================================================ -->
+    <xacro:if value="${use_gripper_mount}">
+      <link name="${prefix}gripper_mount_link">
+        <visual>
+          <origin xyz="0 0 ${grip['plate_thickness'] / 2.0}" rpy="0 0 0"/>
+          <geometry>
+            <cylinder radius="${grip['plate_radius']}" length="${grip['plate_thickness']}"/>
+          </geometry>
+          <material name="arm_blue"/>
+        </visual>
+        <collision>
+          <origin xyz="0 0 ${grip['plate_thickness'] / 2.0}" rpy="0 0 0"/>
+          <geometry>
+            <cylinder radius="${grip['plate_radius']}" length="${grip['plate_thickness']}"/>
+          </geometry>
+        </collision>
+        <xacro:cylinder_inertial
+          mass="${grip['plate_mass']}"
+          radius="${grip['plate_radius']}"
+          length="${grip['plate_thickness']}">
+          <origin xyz="0 0 ${grip['plate_thickness'] / 2.0}" rpy="0 0 0"/>
+        </xacro:cylinder_inertial>
+      </link>
+
+      <joint name="${prefix}joint_gripper_mount" type="fixed">
+        <parent link="${prefix}tool0"/>
+        <child link="${prefix}gripper_mount_link"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+      </joint>
+
+      <!-- Tool centre point of whatever gets bolted to the mounting plate. -->
+      <link name="${prefix}tool_tip"/>
+      <joint name="${prefix}joint_tool_tip" type="fixed">
+        <parent link="${prefix}gripper_mount_link"/>
+        <child link="${prefix}tool_tip"/>
+        <origin xyz="0 0 ${grip['tip_offset']}" rpy="0 0 0"/>
+      </joint>
+    </xacro:if>
+
+  </xacro:macro>
+
+</robot>

@@ -1,0 +1,39 @@
+# --- ROS 2 / colcon build artifacts -----------------------------------------
+build/
+install/
+log/
+devel/
+.colcon_install_layout
+COLCON_IGNORE
+AMENT_IGNORE
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# --- C/C++ -------------------------------------------------------------------
+*.o
+*.so
+*.a
+compile_commands.json
+.cache/
+
+# --- Editors / OS ------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# --- Gazebo ------------------------------------------------------------------
+.gazebo/
+*.log
+
+# --- Generated URDF dumps ----------------------------------------------------
+*.urdf.generated

@@ -1,0 +1,132 @@
+# ============================================================================
+#  robot_arm - real hardware configuration.
+#
+#  These values are injected into the URDF as ros2_control <param> entries by
+#  robot_arm_description/urdf/ros2_control.xacro, and are read back by the
+#  RobotArmSystemHardware plugin.  Nothing here is compiled into the driver:
+#  changing motor ids, gear ratios or the bus type is a YAML edit + relaunch.
+# ============================================================================
+robot_arm_hardware:
+
+  # -------------------------------------------------------------------------
+  # Transport layer - HOW the bytes reach the motor controller.
+  #
+  #   loopback : no bus at all.  An internal, deterministic motor simulation
+  #              answers every request.  Use it to exercise the *real* driver
+  #              code path (encoder conversion, timeouts, e-stop, diagnostics)
+  #              without hardware, and as the default so that a fresh clone
+  #              cannot accidentally drive a machine.
+  #   serial   : /dev/tty* (USB-serial, UART)
+  #   rs485    : same driver as `serial`, with optional RTS direction toggling
+  #   can      : SocketCAN (`can0`, `vcan0`, ...)
+  #   tcp      : Ethernet, raw TCP socket
+  # -------------------------------------------------------------------------
+  transport:
+    type: loopback
+
+    serial:
+      port: /dev/ttyUSB0
+      baudrate: 921600
+      parity: none          # none | even | odd
+      data_bits: 8
+      stop_bits: 1
+
+    rs485:
+      rts_toggle: false     # true if the transceiver needs manual DE/RE control
+
+    can:
+      interface: can0
+      base_id: 256          # 0x100: frame id of motor n is base_id + motor_id
+
+    tcp:
+      host: 192.168.1.50
+      port: 5000
+
+    read_timeout_ms: 8      # must stay below the control period (10 ms @ 100 Hz)
+    write_timeout_ms: 8
+
+  # -------------------------------------------------------------------------
+  # Protocol layer - WHAT the bytes mean.  Swapping this does not touch the
+  # transport, the hardware interface, ros2_control or MoveIt.
+  #
+  #   loopback     : paired with the loopback transport, simulated motors
+  #   simple_ascii : human readable line protocol, see protocol/README or
+  #                  include/robot_arm_hardware/protocol/simple_ascii_protocol.hpp
+  # -------------------------------------------------------------------------
+  protocol:
+    type: loopback          # loopback | simple_ascii
+    checksum: true          # append/verify a checksum on every frame
+
+  # -------------------------------------------------------------------------
+  # Control loop and safety behaviour.
+  # -------------------------------------------------------------------------
+  control:
+    command_timeout: 0.25         # [s] no new command from the controller -> hold & stop
+    comm_timeout: 0.20            # [s] no valid reply from the controller -> error
+    max_consecutive_errors: 5     # read/write failures tolerated before erroring out
+    enable_on_activate: true      # energise the drives when the controller activates
+    diagnostics_period: 1.0       # [s] diagnostic_msgs publication period
+    node_namespace: ""            # namespace of the driver's own ROS node
+    apply_gear_ratio_in_driver: true   # see transmissions.xacro
+
+  # -------------------------------------------------------------------------
+  # Per-joint drive configuration.  Every joint may differ: do not assume one
+  # encoder resolution or one gearbox for the whole arm.
+  #
+  #   motor_id           : address of the drive on the bus
+  #   encoder_resolution : counts per motor revolution (before the gearbox)
+  #   gear_ratio         : motor revolutions per joint revolution
+  #   encoder_direction  : +1 / -1, sign of the encoder relative to the motor
+  #   torque_constant    : [Nm/A] motor-side torque per ampere
+  #   max_current        : [A] current limit reported to the safety layer
+  #   max_temperature    : [degC] warning threshold used by the diagnostics
+  # -------------------------------------------------------------------------
+  joints:
+    joint_1:
+      motor_id: 1
+      encoder_resolution: 4096
+      gear_ratio: 100.0
+      encoder_direction: 1
+      torque_constant: 0.085
+      max_current: 8.0
+      max_temperature: 70.0
+    joint_2:
+      motor_id: 2
+      encoder_resolution: 4096
+      gear_ratio: 120.0
+      encoder_direction: 1
+      torque_constant: 0.085
+      max_current: 8.0
+      max_temperature: 70.0
+    joint_3:
+      motor_id: 3
+      encoder_resolution: 2048
+      gear_ratio: 100.0
+      encoder_direction: -1
+      torque_constant: 0.070
+      max_current: 6.0
+      max_temperature: 70.0
+    joint_4:
+      motor_id: 4
+      encoder_resolution: 2048
+      gear_ratio: 50.0
+      encoder_direction: 1
+      torque_constant: 0.045
+      max_current: 4.0
+      max_temperature: 65.0
+    joint_5:
+      motor_id: 5
+      encoder_resolution: 1024
+      gear_ratio: 50.0
+      encoder_direction: 1
+      torque_constant: 0.045
+      max_current: 4.0
+      max_temperature: 65.0
+    joint_6:
+      motor_id: 6
+      encoder_resolution: 1024
+      gear_ratio: 30.0
+      encoder_direction: -1
+      torque_constant: 0.030
+      max_current: 3.0
+      max_temperature: 65.0

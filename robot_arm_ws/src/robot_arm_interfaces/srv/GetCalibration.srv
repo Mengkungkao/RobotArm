@@ -1,0 +1,4 @@
+# Read back the calibration currently in force in the driver.
+---
+robot_arm_msgs/JointCalibration[] joints
+string source_file

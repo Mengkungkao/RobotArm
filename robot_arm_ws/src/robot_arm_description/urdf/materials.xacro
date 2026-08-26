@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<!--
+  RViz / URDF materials.  Gazebo materials are applied separately in
+  gazebo.xacro because Gazebo Classic ignores <material> tags coming from URDF.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <material name="arm_dark_grey">
+    <color rgba="0.25 0.25 0.27 1.0"/>
+  </material>
+
+  <material name="arm_grey">
+    <color rgba="0.72 0.72 0.74 1.0"/>
+  </material>
+
+  <material name="arm_orange">
+    <color rgba="0.95 0.55 0.10 1.0"/>
+  </material>
+
+  <material name="arm_black">
+    <color rgba="0.08 0.08 0.08 1.0"/>
+  </material>
+
+  <material name="arm_blue">
+    <color rgba="0.15 0.35 0.75 1.0"/>
+  </material>
+
+</robot>
