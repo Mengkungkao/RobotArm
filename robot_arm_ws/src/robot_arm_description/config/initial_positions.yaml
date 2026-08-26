@@ -1,0 +1,10 @@
+# Joint positions used to initialise the simulated / mock hardware and as the
+# MoveIt "home" state.  Slightly folded so the arm does not start in a
+# singular, fully stretched configuration.
+initial_positions:
+  joint_1: 0.0
+  joint_2: -0.4
+  joint_3: 0.9
+  joint_4: 0.0
+  joint_5: 1.0
+  joint_6: 0.0

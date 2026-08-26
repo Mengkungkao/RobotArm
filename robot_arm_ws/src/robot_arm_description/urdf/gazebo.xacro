@@ -1,0 +1,105 @@
+<?xml version="1.0"?>
+<!--
+  ==========================================================================
+   Gazebo specific description.
+  ==========================================================================
+
+   Everything the simulator (and only the simulator) needs lives here:
+   surface friction, per-link materials, self-collision, and the
+   *_ros2_control system plugin that hosts the controller_manager inside the
+   simulator process.
+
+   Nothing in this file is referenced when the arm runs on real hardware, and
+   nothing outside this file knows that Gazebo exists.  That separation is
+   what makes `use_sim:=true|false` a one-word change.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Surface / visual properties of a single link. -->
+  <xacro:macro name="arm_gazebo_link" params="name material mu1 mu2 self_collide">
+    <gazebo reference="${name}">
+      <material>${material}</material>
+      <mu1>${mu1}</mu1>
+      <mu2>${mu2}</mu2>
+      <selfCollide>${self_collide}</selfCollide>
+      <gravity>true</gravity>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- Ask Gazebo for wrench feedback so joint effort states are meaningful. -->
+  <xacro:macro name="arm_gazebo_joint" params="name">
+    <gazebo reference="${name}">
+      <provideFeedback>true</provideFeedback>
+      <implicitSpringDamper>true</implicitSpringDamper>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:macro name="robot_arm_gazebo"
+               params="prefix sim_engine robot_config_file controllers_file">
+
+    <xacro:property name="cfg" value="${xacro.load_yaml(robot_config_file)}"/>
+    <xacro:property name="gz" value="${cfg['gazebo']}"/>
+
+    <xacro:arm_gazebo_link name="${prefix}base_link" material="${gz['base_material']}"
+      mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="${gz['self_collide']}"/>
+    <xacro:arm_gazebo_link name="${prefix}link_1" material="${gz['joint_material']}"
+      mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="${gz['self_collide']}"/>
+    <xacro:arm_gazebo_link name="${prefix}link_2" material="${gz['link_material']}"
+      mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="${gz['self_collide']}"/>
+    <xacro:arm_gazebo_link name="${prefix}link_3" material="${gz['joint_material']}"
+      mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="${gz['self_collide']}"/>
+    <xacro:arm_gazebo_link name="${prefix}link_4" material="${gz['link_material']}"
+      mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="${gz['self_collide']}"/>
+    <xacro:arm_gazebo_link name="${prefix}link_5" material="${gz['joint_material']}"
+      mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="${gz['self_collide']}"/>
+    <xacro:arm_gazebo_link name="${prefix}link_6" material="${gz['base_material']}"
+      mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="${gz['self_collide']}"/>
+
+    <xacro:arm_gazebo_joint name="${prefix}joint_1"/>
+    <xacro:arm_gazebo_joint name="${prefix}joint_2"/>
+    <xacro:arm_gazebo_joint name="${prefix}joint_3"/>
+    <xacro:arm_gazebo_joint name="${prefix}joint_4"/>
+    <xacro:arm_gazebo_joint name="${prefix}joint_5"/>
+    <xacro:arm_gazebo_joint name="${prefix}joint_6"/>
+
+    <!-- ===================================================================
+         The ros2_control system plugin.
+
+         It starts a controller_manager INSIDE the simulator, so the update
+         loop is driven by simulation time.  The controllers it loads come
+         from the very same controllers.yaml used on the real robot.
+         =================================================================== -->
+    <xacro:if value="${sim_engine == 'classic'}">
+      <gazebo>
+        <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
+          <parameters>${controllers_file}</parameters>
+          <robot_param>robot_description</robot_param>
+          <robot_param_node>robot_state_publisher</robot_param_node>
+          <controller_manager_name>controller_manager</controller_manager_name>
+        </plugin>
+      </gazebo>
+    </xacro:if>
+
+    <xacro:if value="${sim_engine == 'ignition'}">
+      <gazebo>
+        <plugin filename="libign_ros2_control-system.so"
+                name="ign_ros2_control::IgnitionROS2ControlPlugin">
+          <parameters>${controllers_file}</parameters>
+          <controller_manager_name>controller_manager</controller_manager_name>
+        </plugin>
+      </gazebo>
+    </xacro:if>
+
+    <xacro:if value="${sim_engine == 'gz'}">
+      <gazebo>
+        <plugin filename="gz_ros2_control-system"
+                name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+          <parameters>${controllers_file}</parameters>
+          <controller_manager_name>controller_manager</controller_manager_name>
+        </plugin>
+      </gazebo>
+    </xacro:if>
+
+  </xacro:macro>
+
+</robot>

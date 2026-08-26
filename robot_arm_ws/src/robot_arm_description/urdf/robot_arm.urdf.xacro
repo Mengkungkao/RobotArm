@@ -1,0 +1,119 @@
+<?xml version="1.0"?>
+<!--
+  ==========================================================================
+   robot_arm - top level robot description.
+  ==========================================================================
+
+   ONE description file feeds every mode of operation.  The backend is picked
+   with a single argument:
+
+     hardware_type:=gazebo   simulator drives the joints
+     hardware_type:=mock     mock_components, no simulator, no hardware
+     hardware_type:=real     robot_arm_hardware talks to the motor controller
+
+   Examples
+   ========
+     # plain URDF dump (offline / CI):
+     xacro robot_arm.urdf.xacro > /tmp/robot_arm.urdf && check_urdf /tmp/robot_arm.urdf
+
+     # Gazebo Classic:
+     xacro robot_arm.urdf.xacro hardware_type:=gazebo use_world_frame:=true
+
+     # physical robot:
+     xacro robot_arm.urdf.xacro hardware_type:=real
+-->
+<!-- The model name is a literal on purpose: xacro evaluates the attributes of
+     the root element before any <xacro:arg> default is registered, so
+     name="$(arg name)" would force every caller to pass name:= explicitly. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robot_arm">
+
+  <!-- ===================== Arguments ================================== -->
+
+  <!-- Frame prefix, e.g. "left_" for a dual-arm cell.  Empty by default so
+       the canonical names (base_link, joint_1 ... tool0) are used. -->
+  <xacro:arg name="prefix" default=""/>
+
+  <!-- Backend selection: gazebo | mock | real -->
+  <xacro:arg name="hardware_type" default="mock"/>
+
+  <!-- Simulator flavour: classic | ignition | gz  (only used with gazebo) -->
+  <xacro:arg name="sim_engine" default="classic"/>
+
+  <!-- Anchor the robot to a `world` link.  Required in simulation, otherwise
+       the arm is a free-floating body.  Left false elsewhere so that the
+       model root - and therefore the MoveIt planning frame - is base_link. -->
+  <xacro:arg name="use_world_frame" default="false"/>
+
+  <!-- Optional gripper mounting plate + tool_tip frame. -->
+  <xacro:arg name="use_gripper_mount" default="true"/>
+
+  <!-- Emit <transmission> entries (see transmissions.xacro). -->
+  <xacro:arg name="use_transmissions" default="false"/>
+
+  <!-- Configuration files.  Override to re-target the model to a different
+       machine without touching a single line of XML. -->
+  <xacro:arg name="robot_config_file"
+             default="$(find robot_arm_description)/config/robot.yaml"/>
+  <xacro:arg name="initial_positions_file"
+             default="$(find robot_arm_description)/config/initial_positions.yaml"/>
+  <xacro:arg name="hardware_config_file"
+             default="$(find robot_arm_hardware)/config/hardware.yaml"/>
+  <xacro:arg name="calibration_config_file"
+             default="$(find robot_arm_hardware)/config/calibration.yaml"/>
+  <xacro:arg name="controllers_file"
+             default="$(find robot_arm_control)/config/controllers.yaml"/>
+
+  <!-- ===================== Includes ================================== -->
+
+  <xacro:include filename="$(find robot_arm_description)/urdf/robot_arm_macro.xacro"/>
+  <xacro:include filename="$(find robot_arm_description)/urdf/ros2_control.xacro"/>
+  <xacro:include filename="$(find robot_arm_description)/urdf/gazebo.xacro"/>
+
+  <!-- ===================== Convenience properties ==================== -->
+
+  <xacro:property name="prefix" value="$(arg prefix)"/>
+  <xacro:property name="hardware_type" value="$(arg hardware_type)"/>
+  <xacro:property name="sim_engine" value="$(arg sim_engine)"/>
+
+  <!-- ===================== World anchor =============================== -->
+
+  <xacro:if value="$(arg use_world_frame)">
+    <link name="world"/>
+    <joint name="${prefix}world_joint" type="fixed">
+      <parent link="world"/>
+      <child link="${prefix}base_link"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+  </xacro:if>
+
+  <!-- ===================== The robot ================================== -->
+
+  <xacro:robot_arm
+    prefix="${prefix}"
+    robot_config_file="$(arg robot_config_file)"
+    use_gripper_mount="$(arg use_gripper_mount)"/>
+
+  <!-- ===================== ros2_control =============================== -->
+
+  <xacro:robot_arm_ros2_control
+    name="${prefix}robot_arm_system"
+    prefix="${prefix}"
+    hardware_type="${hardware_type}"
+    sim_engine="${sim_engine}"
+    robot_config_file="$(arg robot_config_file)"
+    initial_positions_file="$(arg initial_positions_file)"
+    hardware_config_file="$(arg hardware_config_file)"
+    calibration_config_file="$(arg calibration_config_file)"
+    use_transmissions="$(arg use_transmissions)"/>
+
+  <!-- ===================== Simulator glue ============================= -->
+
+  <xacro:if value="${hardware_type == 'gazebo'}">
+    <xacro:robot_arm_gazebo
+      prefix="${prefix}"
+      sim_engine="${sim_engine}"
+      robot_config_file="$(arg robot_config_file)"
+      controllers_file="$(arg controllers_file)"/>
+  </xacro:if>
+
+</robot>

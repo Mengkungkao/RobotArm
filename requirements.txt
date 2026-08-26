@@ -1,0 +1,17 @@
+# Extra Python dependencies for robot_arm_ws.
+#
+# Everything ROS-specific (rclpy, moveit_msgs, ...) comes from the ROS 2
+# installation and from rosdep, NOT from pip.  Install those with:
+#
+#   rosdep install --from-paths src --ignore-src -r -y
+#
+# The packages below are plain-Python helpers used by robot_arm_tools and by
+# the test-suite.  Install them with:
+#
+#   python3 -m pip install -r requirements.txt
+#
+numpy>=1.21
+PyYAML>=5.4
+transforms3d>=0.4.1     # RPY <-> quaternion helpers used by the CLI tools
+pytest>=6.2             # test runner (also provided by ros-<distro>-ament-cmake-pytest)
+pyserial>=3.5           # optional: host-side utilities that talk to the motor controller

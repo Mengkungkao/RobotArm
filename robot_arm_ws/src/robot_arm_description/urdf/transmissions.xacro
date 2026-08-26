@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<!--
+  ==========================================================================
+   Transmission description (ros2_control format).
+  ==========================================================================
+
+   IMPORTANT - how the gear reduction is really applied in this project:
+
+   The robot_arm_hardware plugin converts between motor-side encoder counts
+   and joint-side radians itself, using the per-joint `gear_ratio` and
+   `encoder_resolution` parameters from hardware.yaml.  That is the practical
+   choice for a driver that talks to a motor controller, because the same
+   numbers are needed for the velocity, effort and current conversions too.
+
+   The <transmission> entries below are therefore OPTIONAL and disabled by
+   default (`use_transmissions:=false`).  They exist so that:
+     * tooling that inspects the URDF can see the mechanical reduction, and
+     * a future setup that prefers transmission_interface plugins over
+       in-driver conversion can switch to them without restructuring
+       anything else.
+
+   Enable with:  xacro ... use_transmissions:=true
+   and set `apply_gear_ratio_in_driver: false` in hardware.yaml so the
+   reduction is not applied twice.
+
+   These elements must live INSIDE the <ros2_control> tag, which is where the
+   robot_arm_ros2_control macro inserts them.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="arm_transmission" params="joint reduction">
+    <transmission name="${joint}_transmission">
+      <plugin>transmission_interface/SimpleTransmission</plugin>
+      <actuator name="${joint}_motor" role="actuator1"/>
+      <joint name="${joint}" role="joint1">
+        <mechanical_reduction>${reduction}</mechanical_reduction>
+      </joint>
+    </transmission>
+  </xacro:macro>
+
+  <xacro:macro name="robot_arm_transmissions" params="prefix hw">
+    <xacro:arm_transmission joint="${prefix}joint_1"
+                            reduction="${hw['joints']['joint_1']['gear_ratio']}"/>
+    <xacro:arm_transmission joint="${prefix}joint_2"
+                            reduction="${hw['joints']['joint_2']['gear_ratio']}"/>
+    <xacro:arm_transmission joint="${prefix}joint_3"
+                            reduction="${hw['joints']['joint_3']['gear_ratio']}"/>
+    <xacro:arm_transmission joint="${prefix}joint_4"
+                            reduction="${hw['joints']['joint_4']['gear_ratio']}"/>
+    <xacro:arm_transmission joint="${prefix}joint_5"
+                            reduction="${hw['joints']['joint_5']['gear_ratio']}"/>
+    <xacro:arm_transmission joint="${prefix}joint_6"
+                            reduction="${hw['joints']['joint_6']['gear_ratio']}"/>
+  </xacro:macro>
+
+</robot>

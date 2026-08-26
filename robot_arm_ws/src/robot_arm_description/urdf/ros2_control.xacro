@@ -1,0 +1,210 @@
+<?xml version="1.0"?>
+<!--
+  ==========================================================================
+   ros2_control description for robot_arm.
+  ==========================================================================
+
+   This is THE file that decides which backend drives the joints.  Everything
+   above it (MoveIt, the arm_controller, the Python/C++ APIs) is identical in
+   every mode - that is the whole point of the architecture:
+
+                             ros2_control
+                                  |
+             +====================+====================+
+             |                    |                    |
+        gazebo (sim)         mock (offline)       real hardware
+     GazeboSystem /        mock_components/     robot_arm_hardware/
+     IgnitionSystem        GenericSystem       RobotArmSystemHardware
+
+   The hardware-specific numbers (encoder resolution, gear ratio, motor ids,
+   port names, ...) are read from YAML at Xacro-expansion time and injected as
+   ros2_control <param> entries, so no hardware value is hard-coded here.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find robot_arm_description)/urdf/transmissions.xacro"/>
+
+  <!-- ===================================================================
+       One <joint> entry of the ros2_control system.
+       =================================================================== -->
+  <xacro:macro name="arm_ros2_control_joint"
+               params="name spec initial_position is_real hw_joint cal_joint">
+    <joint name="${name}">
+
+      <!-- Command interfaces =========================================== -->
+      <command_interface name="position">
+        <param name="min">${spec['lower']}</param>
+        <param name="max">${spec['upper']}</param>
+      </command_interface>
+      <command_interface name="velocity">
+        <param name="min">${-spec['velocity']}</param>
+        <param name="max">${spec['velocity']}</param>
+      </command_interface>
+
+      <!-- State interfaces ============================================= -->
+      <state_interface name="position">
+        <param name="initial_value">${initial_position}</param>
+      </state_interface>
+      <state_interface name="velocity">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="effort">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+
+      <!-- Drive / encoder / calibration parameters.
+           Only meaningful for the real hardware plugin; they are omitted in
+           simulation so that the simulated system stays a pure kinematic /
+           dynamic model. =============================================== -->
+      <xacro:if value="${is_real}">
+        <param name="motor_id">${hw_joint['motor_id']}</param>
+        <param name="encoder_resolution">${hw_joint['encoder_resolution']}</param>
+        <param name="gear_ratio">${hw_joint['gear_ratio']}</param>
+        <param name="encoder_direction">${hw_joint['encoder_direction']}</param>
+        <param name="torque_constant">${hw_joint['torque_constant']}</param>
+        <param name="max_current">${hw_joint['max_current']}</param>
+        <param name="max_temperature">${hw_joint['max_temperature']}</param>
+        <param name="zero_offset">${cal_joint['zero_offset']}</param>
+        <param name="direction">${cal_joint['direction']}</param>
+        <param name="min_position">${cal_joint['min_position']}</param>
+        <param name="max_position">${cal_joint['max_position']}</param>
+        <param name="max_velocity">${spec['velocity']}</param>
+        <param name="max_effort">${spec['effort']}</param>
+      </xacro:if>
+    </joint>
+  </xacro:macro>
+
+  <!-- ===================================================================
+       The complete <ros2_control> block.
+       =================================================================== -->
+  <xacro:macro name="robot_arm_ros2_control"
+               params="name prefix hardware_type sim_engine
+                       robot_config_file initial_positions_file
+                       hardware_config_file calibration_config_file
+                       use_transmissions:=false">
+
+    <xacro:property name="cfg" value="${xacro.load_yaml(robot_config_file)}"/>
+    <xacro:property name="jnt" value="${cfg['joints']}"/>
+    <xacro:property name="init"
+                    value="${xacro.load_yaml(initial_positions_file)['initial_positions']}"/>
+    <xacro:property name="is_real" value="${hardware_type == 'real'}"/>
+
+    <!-- The hardware/calibration YAML is only loaded when it is actually
+         needed, so a simulation-only workspace never has to provide one. -->
+    <xacro:if value="${is_real}">
+      <xacro:property name="hw"
+                      value="${xacro.load_yaml(hardware_config_file)['robot_arm_hardware']}"/>
+      <xacro:property name="cal"
+                      value="${xacro.load_yaml(calibration_config_file)['calibration']}"/>
+    </xacro:if>
+    <xacro:unless value="${is_real}">
+      <xacro:property name="hw" value="${dict()}"/>
+      <xacro:property name="cal" value="${dict()}"/>
+    </xacro:unless>
+
+    <ros2_control name="${name}" type="system">
+
+      <!-- ============================ HARDWARE ======================== -->
+
+      <!-- Gazebo Classic / Ignition / new gz-sim: the simulator itself acts
+           as the hardware.  Same controllers, same interfaces. -->
+      <xacro:if value="${hardware_type == 'gazebo'}">
+        <hardware>
+          <xacro:if value="${sim_engine == 'classic'}">
+            <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+          </xacro:if>
+          <xacro:if value="${sim_engine == 'ignition'}">
+            <plugin>ign_ros2_control/IgnitionSystem</plugin>
+          </xacro:if>
+          <xacro:if value="${sim_engine == 'gz'}">
+            <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+          </xacro:if>
+        </hardware>
+      </xacro:if>
+
+      <!-- Offline development: no simulator, no hardware.  The controllers,
+           MoveIt and the user APIs behave exactly as in the other modes. -->
+      <xacro:if value="${hardware_type == 'mock'}">
+        <hardware>
+          <plugin>mock_components/GenericSystem</plugin>
+          <param name="mock_sensor_commands">false</param>
+          <param name="calculate_dynamics">true</param>
+        </hardware>
+      </xacro:if>
+
+      <!-- The physical machine. -->
+      <xacro:if value="${is_real}">
+        <hardware>
+          <plugin>robot_arm_hardware/RobotArmSystemHardware</plugin>
+
+          <!-- Transport layer selection (serial / rs485 / can / tcp / loopback) -->
+          <param name="transport_type">${hw['transport']['type']}</param>
+          <param name="serial_port">${hw['transport']['serial']['port']}</param>
+          <param name="serial_baudrate">${hw['transport']['serial']['baudrate']}</param>
+          <param name="serial_parity">${hw['transport']['serial']['parity']}</param>
+          <param name="serial_data_bits">${hw['transport']['serial']['data_bits']}</param>
+          <param name="serial_stop_bits">${hw['transport']['serial']['stop_bits']}</param>
+          <param name="rs485_rts_toggle">${hw['transport']['rs485']['rts_toggle']}</param>
+          <param name="can_interface">${hw['transport']['can']['interface']}</param>
+          <param name="can_base_id">${hw['transport']['can']['base_id']}</param>
+          <param name="tcp_host">${hw['transport']['tcp']['host']}</param>
+          <param name="tcp_port">${hw['transport']['tcp']['port']}</param>
+          <param name="read_timeout_ms">${hw['transport']['read_timeout_ms']}</param>
+          <param name="write_timeout_ms">${hw['transport']['write_timeout_ms']}</param>
+
+          <!-- Protocol layer selection -->
+          <param name="protocol_type">${hw['protocol']['type']}</param>
+          <param name="protocol_checksum">${hw['protocol']['checksum']}</param>
+
+          <!-- Control / safety -->
+          <param name="command_timeout">${hw['control']['command_timeout']}</param>
+          <param name="comm_timeout">${hw['control']['comm_timeout']}</param>
+          <param name="max_consecutive_errors">${hw['control']['max_consecutive_errors']}</param>
+          <param name="enable_on_activate">${hw['control']['enable_on_activate']}</param>
+          <param name="diagnostics_period">${hw['control']['diagnostics_period']}</param>
+          <param name="node_namespace">${hw['control']['node_namespace']}</param>
+          <param name="apply_gear_ratio_in_driver">${hw['control']['apply_gear_ratio_in_driver']}</param>
+        </hardware>
+      </xacro:if>
+
+      <!-- ============================= JOINTS ========================= -->
+      <xacro:arm_ros2_control_joint
+        name="${prefix}joint_1" spec="${jnt['joint_1']}"
+        initial_position="${init['joint_1']}" is_real="${is_real}"
+        hw_joint="${hw['joints']['joint_1'] if is_real else dict()}"
+        cal_joint="${cal['joint_1'] if is_real else dict()}"/>
+      <xacro:arm_ros2_control_joint
+        name="${prefix}joint_2" spec="${jnt['joint_2']}"
+        initial_position="${init['joint_2']}" is_real="${is_real}"
+        hw_joint="${hw['joints']['joint_2'] if is_real else dict()}"
+        cal_joint="${cal['joint_2'] if is_real else dict()}"/>
+      <xacro:arm_ros2_control_joint
+        name="${prefix}joint_3" spec="${jnt['joint_3']}"
+        initial_position="${init['joint_3']}" is_real="${is_real}"
+        hw_joint="${hw['joints']['joint_3'] if is_real else dict()}"
+        cal_joint="${cal['joint_3'] if is_real else dict()}"/>
+      <xacro:arm_ros2_control_joint
+        name="${prefix}joint_4" spec="${jnt['joint_4']}"
+        initial_position="${init['joint_4']}" is_real="${is_real}"
+        hw_joint="${hw['joints']['joint_4'] if is_real else dict()}"
+        cal_joint="${cal['joint_4'] if is_real else dict()}"/>
+      <xacro:arm_ros2_control_joint
+        name="${prefix}joint_5" spec="${jnt['joint_5']}"
+        initial_position="${init['joint_5']}" is_real="${is_real}"
+        hw_joint="${hw['joints']['joint_5'] if is_real else dict()}"
+        cal_joint="${cal['joint_5'] if is_real else dict()}"/>
+      <xacro:arm_ros2_control_joint
+        name="${prefix}joint_6" spec="${jnt['joint_6']}"
+        initial_position="${init['joint_6']}" is_real="${is_real}"
+        hw_joint="${hw['joints']['joint_6'] if is_real else dict()}"
+        cal_joint="${cal['joint_6'] if is_real else dict()}"/>
+
+      <!-- Optional mechanical reduction description, see transmissions.xacro -->
+      <xacro:if value="${use_transmissions and is_real}">
+        <xacro:robot_arm_transmissions prefix="${prefix}" hw="${hw}"/>
+      </xacro:if>
+
+    </ros2_control>
+  </xacro:macro>
+
+</robot>
