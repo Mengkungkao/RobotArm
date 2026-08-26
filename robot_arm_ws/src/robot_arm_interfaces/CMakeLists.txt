@@ -5,7 +5,6 @@ find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(robot_arm_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(action_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   srv/SetMotorEnable.srv
@@ -13,8 +12,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   srv/CalibrateJoint.srv
   srv/SaveCalibration.srv
   srv/GetCalibration.srv
-  action/HomeArm.action
-  DEPENDENCIES robot_arm_msgs std_msgs action_msgs
+  DEPENDENCIES robot_arm_msgs std_msgs
 )
 
 ament_export_dependencies(rosidl_default_runtime)

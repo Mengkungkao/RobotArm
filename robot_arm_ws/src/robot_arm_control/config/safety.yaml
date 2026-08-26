@@ -1,0 +1,50 @@
+# ============================================================================
+#  Software safety layer that runs in BOTH modes.
+#
+#  On the real robot the hardware interface enforces these limits inside the
+#  control loop as well (see robot_arm_hardware).  The monitor node adds the
+#  parts that must also exist in simulation: watching /joint_states, latching
+#  the emergency stop, aborting trajectory execution and publishing
+#  diagnostics.  Developing against the e-stop in Gazebo therefore behaves the
+#  same way as on the machine.
+# ============================================================================
+safety_monitor:
+  ros__parameters:
+    joints:
+      - joint_1
+      - joint_2
+      - joint_3
+      - joint_4
+      - joint_5
+      - joint_6
+
+    # Interfaces the monitor drives.
+    controller_manager: /controller_manager
+    arm_controller: arm_controller
+    hardware_node: /robot_arm_hardware      # empty in simulation; used when present
+
+    check_rate: 20.0            # [Hz] evaluation rate
+    joint_state_timeout: 0.5    # [s] no /joint_states -> report a fault
+    diagnostics_period: 1.0     # [s]
+
+    # Fraction of the URDF velocity limit that is considered acceptable before
+    # a warning is raised.  1.0 = the URDF limit itself.
+    velocity_scale: 1.0
+
+    # Distance from a position limit at which a warning is raised [rad].
+    warn_margin: 0.05
+
+    # Engaging the emergency stop deactivates the trajectory controller, which
+    # aborts the running trajectory instead of letting it resume later.
+    stop_controller_on_estop: true
+
+    # Enforced position/velocity/effort limits.  Keep them consistent with
+    # robot_arm_description/config/robot.yaml; the monitor warns at start-up
+    # when a value here is wider than the URDF limit.
+    limits:
+      joint_1: {min_position: -3.1416, max_position: 3.1416, max_velocity: 2.60, max_effort: 150.0}
+      joint_2: {min_position: -2.0944, max_position: 2.0944, max_velocity: 2.20, max_effort: 150.0}
+      joint_3: {min_position: -2.6180, max_position: 2.6180, max_velocity: 2.60, max_effort: 100.0}
+      joint_4: {min_position: -3.1416, max_position: 3.1416, max_velocity: 3.20, max_effort: 40.0}
+      joint_5: {min_position: -2.0944, max_position: 2.0944, max_velocity: 3.20, max_effort: 40.0}
+      joint_6: {min_position: -3.1416, max_position: 3.1416, max_velocity: 3.20, max_effort: 20.0}

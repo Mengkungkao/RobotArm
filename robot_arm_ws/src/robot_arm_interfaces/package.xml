@@ -4,10 +4,9 @@
   <name>robot_arm_interfaces</name>
   <version>1.0.0</version>
   <description>
-    Service and action definitions for the robot_arm project: motor enable,
-    emergency stop, joint calibration and homing.  Split from robot_arm_msgs
-    so that data consumers and command senders can depend on exactly what
-    they need.
+    Service definitions for the robot_arm project: motor enable, emergency
+    stop and joint calibration.  Split from robot_arm_msgs so that data
+    consumers and command senders can depend on exactly what they need.
   </description>
   <maintainer email="mengkungkao@gmail.com">robot_arm maintainers</maintainer>
   <license>MIT</license>
@@ -17,7 +16,6 @@
 
   <depend>robot_arm_msgs</depend>
   <depend>std_msgs</depend>
-  <depend>action_msgs</depend>
 
   <exec_depend>rosidl_default_runtime</exec_depend>
   <member_of_group>rosidl_interface_packages</member_of_group>
