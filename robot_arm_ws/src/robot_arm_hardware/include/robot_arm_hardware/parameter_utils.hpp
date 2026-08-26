@@ -34,6 +34,20 @@ bool get_bool(const ParameterMap & params, const std::string & key, bool fallbac
 /// Parse "true"/"True"/"1"/"yes"/"on" and their negatives.
 bool parse_bool(const std::string & value, const std::string & context);
 
+/// Accessors for values that MUST be present.
+///
+/// A driver that quietly substitutes a default gear ratio or encoder
+/// resolution will move a real machine by the wrong amount, so a missing value
+/// is an error here, never a default.
+double require_double(
+  const ParameterMap & params, const std::string & key, const std::string & context);
+
+int64_t require_int64(
+  const ParameterMap & params, const std::string & key, const std::string & context);
+
+int require_int(
+  const ParameterMap & params, const std::string & key, const std::string & context);
+
 }  // namespace robot_arm_hardware
 
 #endif  // ROBOT_ARM_HARDWARE__PARAMETER_UTILS_HPP_

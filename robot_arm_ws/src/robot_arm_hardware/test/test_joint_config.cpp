@@ -193,8 +193,49 @@ TEST(JointConfig, ParsedFromRos2ControlParameters)
 
 TEST(JointConfig, MalformedParametersAreRejectedNotDefaulted)
 {
-  std::unordered_map<std::string, std::string> parameters{{"gear_ratio", "one hundred"}};
+  std::unordered_map<std::string, std::string> parameters{
+    {"motor_id", "1"}, {"encoder_resolution", "4096"}, {"gear_ratio", "one hundred"},
+    {"min_position", "-1"}, {"max_position", "1"},
+    {"max_velocity", "2"}, {"max_effort", "50"}};
   EXPECT_THROW(joint_config_from_parameters("joint_1", parameters), std::invalid_argument);
+}
+
+TEST(JointConfig, ParametersThatScaleTheMotionAreMandatory)
+{
+  // A defaulted gear ratio or joint limit would move a real machine by the
+  // wrong amount, or past its stops, so a missing one must be an error.
+  const std::unordered_map<std::string, std::string> complete{
+    {"motor_id", "1"}, {"encoder_resolution", "4096"}, {"gear_ratio", "100.0"},
+    {"min_position", "-1.0"}, {"max_position", "1.0"},
+    {"max_velocity", "2.0"}, {"max_effort", "50.0"}};
+  EXPECT_NO_THROW(joint_config_from_parameters("joint_1", complete));
+
+  for (const std::string required :
+    {"motor_id", "encoder_resolution", "gear_ratio", "min_position", "max_position",
+      "max_velocity", "max_effort"})
+  {
+    auto incomplete = complete;
+    incomplete.erase(required);
+    EXPECT_THROW(joint_config_from_parameters("joint_1", incomplete), std::invalid_argument)
+      << "missing '" << required << "' was silently defaulted";
+  }
+}
+
+TEST(JointConfig, CalibrationAndThermalValuesHaveSafeDefaults)
+{
+  // An unstated encoder sign is "as wired", an unstated offset is
+  // "uncalibrated": both are correct behaviour, not a mis-scaled motion.
+  const std::unordered_map<std::string, std::string> minimal{
+    {"motor_id", "2"}, {"encoder_resolution", "2048"}, {"gear_ratio", "50.0"},
+    {"min_position", "-2.0"}, {"max_position", "2.0"},
+    {"max_velocity", "1.0"}, {"max_effort", "20.0"}};
+
+  const auto joint = joint_config_from_parameters("joint_2", minimal);
+  EXPECT_EQ(joint.encoder_direction, 1);
+  EXPECT_EQ(joint.direction, 1);
+  EXPECT_DOUBLE_EQ(joint.zero_offset, 0.0);
+  EXPECT_DOUBLE_EQ(joint.home_position, 0.0);
+  EXPECT_GT(joint.max_temperature, 0.0);
 }
 
 TEST(JointConfig, XacroStyleBooleansAreAccepted)

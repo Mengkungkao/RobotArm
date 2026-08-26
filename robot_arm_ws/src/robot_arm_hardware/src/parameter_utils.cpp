@@ -84,6 +84,40 @@ bool get_bool(const ParameterMap & params, const std::string & key, bool fallbac
   return parse_bool(it->second, key);
 }
 
+namespace
+{
+void ensure_present(
+  const ParameterMap & params, const std::string & key, const std::string & context)
+{
+  const auto it = params.find(key);
+  if (it == params.end() || trim(it->second).empty()) {
+    throw std::invalid_argument(
+      context + ": required parameter '" + key + "' is missing. It is normally injected "
+      "from hardware.yaml/calibration.yaml by robot_arm_description/urdf/ros2_control.xacro.");
+  }
+}
+}  // namespace
+
+double require_double(
+  const ParameterMap & params, const std::string & key, const std::string & context)
+{
+  ensure_present(params, key, context);
+  return get_double(params, key, 0.0);
+}
+
+int64_t require_int64(
+  const ParameterMap & params, const std::string & key, const std::string & context)
+{
+  ensure_present(params, key, context);
+  return get_int64(params, key, 0);
+}
+
+int require_int(
+  const ParameterMap & params, const std::string & key, const std::string & context)
+{
+  return static_cast<int>(require_int64(params, key, context));
+}
+
 bool parse_bool(const std::string & value, const std::string & context)
 {
   const std::string normalised = to_lower(trim(value));

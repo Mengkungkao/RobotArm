@@ -119,9 +119,15 @@ JointConfig joint_config_from_parameters(
   JointConfig config;
   config.name = joint_name;
 
-  config.motor_id = get_int(parameters, "motor_id", 0);
-  config.encoder_resolution = get_int64(parameters, "encoder_resolution", 4096);
-  config.gear_ratio = get_double(parameters, "gear_ratio", 1.0);
+  // Anything that scales or bounds the motion must be stated explicitly: a
+  // defaulted gear ratio or joint limit would move a real machine by the wrong
+  // amount, or past its stops, with nothing in the logs to say why.
+  config.motor_id = require_int(parameters, "motor_id", joint_name);
+  config.encoder_resolution = require_int64(parameters, "encoder_resolution", joint_name);
+  config.gear_ratio = require_double(parameters, "gear_ratio", joint_name);
+  // These have safe defaults: an unstated encoder sign is "as wired", an
+  // unstated zero offset is "uncalibrated", and an unstated thermal limit only
+  // affects when a warning is raised.
   config.encoder_direction = get_int(parameters, "encoder_direction", 1);
   config.torque_constant = get_double(parameters, "torque_constant", 0.0);
   config.max_current = get_double(parameters, "max_current", 0.0);
@@ -131,10 +137,10 @@ JointConfig joint_config_from_parameters(
   config.direction = get_int(parameters, "direction", 1);
   config.home_position = get_double(parameters, "home_position", 0.0);
 
-  config.min_position = get_double(parameters, "min_position", -M_PI);
-  config.max_position = get_double(parameters, "max_position", M_PI);
-  config.max_velocity = get_double(parameters, "max_velocity", M_PI);
-  config.max_effort = get_double(parameters, "max_effort", 100.0);
+  config.min_position = require_double(parameters, "min_position", joint_name);
+  config.max_position = require_double(parameters, "max_position", joint_name);
+  config.max_velocity = require_double(parameters, "max_velocity", joint_name);
+  config.max_effort = require_double(parameters, "max_effort", joint_name);
 
   config.apply_gear_ratio = apply_gear_ratio;
 
