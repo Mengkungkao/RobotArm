@@ -820,6 +820,28 @@ colcon test --packages-select robot_arm_hardware
 The C++ unit tests and every configuration test run without ROS, without a
 simulator and without hardware, which makes them usable in a plain CI container.
 
+### Without a ROS installation
+
+The safety-critical core of the driver builds with plain CMake, so it can be
+compiled and tested anywhere - including under a sanitizer:
+
+```bash
+cd robot_arm_ws/src/robot_arm_hardware
+cmake -S standalone -B build-core -DCMAKE_BUILD_TYPE=Release
+cmake --build build-core -j
+ctest --test-dir build-core --output-on-failure     # 4 suites, 53 cases
+```
+
+The rest of the offline checks need no build at all:
+
+```bash
+cd robot_arm_ws/src
+xacro robot_arm_description/urdf/robot_arm.urdf.xacro hardware_type:=real   # expands
+python3 -m pytest robot_arm_control/test robot_arm_moveit_config/test \
+                 robot_arm_tools/test robot_arm_simulation/test -q
+python3 -m flake8 --max-line-length=99 .
+```
+
 ---
 
 ## Troubleshooting

@@ -99,6 +99,29 @@ it spins a small one:
 colcon test --packages-select robot_arm_hardware
 ```
 
+The core of this package - the transport layer, the protocols, the encoder and
+calibration conversions and the safety checker - has no ROS dependency, so it
+can also be built and tested with plain CMake on a machine with no ROS
+installed at all:
+
+```bash
+cd robot_arm_ws/src/robot_arm_hardware
+cmake -S standalone -B build-core -DCMAKE_BUILD_TYPE=Release
+cmake --build build-core -j
+ctest --test-dir build-core --output-on-failure
+```
+
+Both paths compile the same sources; `colcon` additionally builds the
+ros2_control plugin around them. The standalone build is what makes it
+practical to run the safety-critical code under a sanitizer:
+
+```bash
+cmake -S standalone -B build-asan -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g" \
+    -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+cmake --build build-asan -j && ctest --test-dir build-asan --output-on-failure
+```
+
 `test_joint_config` (encoder/gear/calibration conversions),
 `test_safety_checker` (limits, timeouts, e-stop, NaN handling),
 `test_transport` and `test_protocol` (framing, checksums, feedback parsing,
