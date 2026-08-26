@@ -1,0 +1,12 @@
+# Engage or release the software emergency stop.
+#
+# Engaging is immediate and unconditional: commands are zeroed and the drives
+# are disabled.  Releasing only clears the software latch; whatever the
+# hardware e-stop chain requires (physical reset button, contactor) is not
+# bypassed by this service.
+bool engage
+string reason               # recorded in the log, e.g. "operator", "collision"
+---
+bool success
+bool e_stop_active          # state after the call
+string message

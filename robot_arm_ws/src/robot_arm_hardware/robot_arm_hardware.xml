@@ -1,0 +1,13 @@
+<library path="robot_arm_hardware">
+  <class
+    name="robot_arm_hardware/RobotArmSystemHardware"
+    type="robot_arm_hardware::RobotArmSystemHardware"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ros2_control System interface for the physical 6-DOF robot_arm.  Converts
+      encoder counts to calibrated joint states, enforces the software safety
+      limits, and talks to the motor controller through a pluggable transport
+      (serial, RS485, CAN, TCP or an in-process loopback) and protocol.
+    </description>
+  </class>
+</library>

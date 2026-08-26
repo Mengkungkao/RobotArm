@@ -1,0 +1,6 @@
+# Persist the in-memory calibration to a YAML file readable by the URDF.
+string file_path            # empty -> the file the calibration was loaded from
+---
+bool success
+string file_path            # path actually written
+string message

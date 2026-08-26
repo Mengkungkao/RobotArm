@@ -66,6 +66,7 @@
         <param name="max_temperature">${hw_joint['max_temperature']}</param>
         <param name="zero_offset">${cal_joint['zero_offset']}</param>
         <param name="direction">${cal_joint['direction']}</param>
+        <param name="home_position">${cal_joint['home_position']}</param>
         <param name="min_position">${cal_joint['min_position']}</param>
         <param name="max_position">${cal_joint['max_position']}</param>
         <param name="max_velocity">${spec['velocity']}</param>
@@ -164,6 +165,10 @@
           <param name="diagnostics_period">${hw['control']['diagnostics_period']}</param>
           <param name="node_namespace">${hw['control']['node_namespace']}</param>
           <param name="apply_gear_ratio_in_driver">${hw['control']['apply_gear_ratio_in_driver']}</param>
+
+          <!-- Where `save_calibration` writes by default.  With a
+               a symlink-install workspace this is the source file itself. -->
+          <param name="calibration_file">${calibration_config_file}</param>
         </hardware>
       </xacro:if>
 

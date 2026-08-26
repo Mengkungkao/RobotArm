@@ -1,0 +1,14 @@
+# Drive the arm to its calibrated home pose, one joint group at a time.
+#
+# Goal
+string[] joints             # empty -> every joint, in the configured order
+float64 velocity_scaling    # 0 < s <= 1, 0 -> use the default
+---
+# Result
+bool success
+string message
+float64[] final_positions   # [rad]
+---
+# Feedback
+string current_joint
+float64 progress            # 0.0 .. 1.0

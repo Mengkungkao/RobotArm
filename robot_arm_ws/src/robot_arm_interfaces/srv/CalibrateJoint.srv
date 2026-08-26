@@ -1,0 +1,13 @@
+# Teach the zero position of one joint.
+#
+# The joint is jogged to a known mechanical reference by the operator, then
+# this service records the offset needed to make the encoder read
+# `known_position` at that pose.
+string joint_name
+float64 known_position      # [rad] true joint angle at the current pose
+bool set_direction          # also update `direction` from `direction_value`
+int8 direction_value        # +1 or -1, only used when set_direction is true
+---
+bool success
+float64 zero_offset         # [rad] offset that was stored
+string message
