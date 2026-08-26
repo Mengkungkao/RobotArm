@@ -279,7 +279,8 @@ class RobotArm:
                 result.velocities.append(float('nan'))
                 result.efforts.append(float('nan'))
                 continue
-            result.positions.append(message.position[i] if i < len(message.position) else float('nan'))
+            result.positions.append(
+                message.position[i] if i < len(message.position) else float('nan'))
             result.velocities.append(
                 message.velocity[i] if i < len(message.velocity) else float('nan'))
             result.efforts.append(message.effort[i] if i < len(message.effort) else float('nan'))
@@ -583,7 +584,8 @@ class RobotArm:
         )
 
     def _send_trajectory(
-        self, positions: Sequence[float], duration: float, wait: bool) -> MoveResult:
+        self, positions: Sequence[float], duration: float, wait: bool
+    ) -> MoveResult:
         """Send a single-point trajectory straight to the controller."""
         if not self._trajectory_client.wait_for_server(timeout_sec=self.timeout):
             return MoveResult(
@@ -608,8 +610,9 @@ class RobotArm:
     # -- kinematics --------------------------------------------------------
 
     def forward_kinematics(
-        self, joint_positions: Optional[Sequence[float]] = None,
-        link: Optional[str] = None):
+            self,
+            joint_positions: Optional[Sequence[float]] = None,
+            link: Optional[str] = None):
         """
         FK through MoveIt: joint angles -> pose of `link` (default `tool0`).
 

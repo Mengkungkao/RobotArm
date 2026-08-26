@@ -23,7 +23,8 @@ __all__ = [
 ]
 
 
-def quaternion_from_euler(roll: float, pitch: float, yaw: float) -> Tuple[float, float, float, float]:
+def quaternion_from_euler(
+        roll: float, pitch: float, yaw: float) -> Tuple[float, float, float, float]:
     """Convert roll/pitch/yaw [rad] to a quaternion (x, y, z, w)."""
     half_roll, half_pitch, half_yaw = roll * 0.5, pitch * 0.5, yaw * 0.5
     sin_r, cos_r = math.sin(half_roll), math.cos(half_roll)
@@ -56,7 +57,8 @@ def euler_from_quaternion(x: float, y: float, z: float, w: float) -> Tuple[float
     return (roll, pitch, yaw)
 
 
-def normalize_quaternion(x: float, y: float, z: float, w: float) -> Tuple[float, float, float, float]:
+def normalize_quaternion(
+        x: float, y: float, z: float, w: float) -> Tuple[float, float, float, float]:
     """Return the unit quaternion; an all-zero input becomes the identity."""
     norm = math.sqrt(x * x + y * y + z * z + w * w)
     if norm < 1e-12:
