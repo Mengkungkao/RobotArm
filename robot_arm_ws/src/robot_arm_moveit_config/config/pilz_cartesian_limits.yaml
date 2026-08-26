@@ -1,0 +1,12 @@
+# ============================================================================
+#  Cartesian limits for the Pilz industrial motion planner (PTP / LIN / CIRC).
+#
+#  Only used when the pilz_industrial_motion_planner pipeline is enabled:
+#      ros2 launch robot_arm_bringup sim.launch.py \
+#          planning_pipelines:="ompl pilz_industrial_motion_planner"
+# ============================================================================
+cartesian_limits:
+  max_trans_vel: 1.0      # [m/s]
+  max_trans_acc: 2.25     # [m/s^2]
+  max_trans_dec: -5.0     # [m/s^2], negative by definition
+  max_rot_vel: 1.57       # [rad/s]

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Semantic description of the 6-DOF robot_arm.
+
+  It names the planning group, the useful named poses and the link pairs whose
+  collision checks are pointless, which is what makes planning fast enough to
+  run at interactive rates.
+
+  The model root - and therefore the planning frame - is `base_link`, in every
+  mode.  The simulation adds a `world` link in the URDF to anchor the robot in
+  the physics engine, but the MoveIt configuration deliberately does not, so
+  that a program written against the simulator plans in the same frame on the
+  real machine.
+-->
+<robot name="robot_arm">
+
+  <!-- ===================== Planning group ============================== -->
+  <group name="arm">
+    <chain base_link="base_link" tip_link="tool0"/>
+  </group>
+
+  <!-- ===================== Named poses ================================ -->
+
+  <!-- All joints at their mechanical zero: the arm points straight up. -->
+  <group_state name="zero" group="arm">
+    <joint name="joint_1" value="0.0"/>
+    <joint name="joint_2" value="0.0"/>
+    <joint name="joint_3" value="0.0"/>
+    <joint name="joint_4" value="0.0"/>
+    <joint name="joint_5" value="0.0"/>
+    <joint name="joint_6" value="0.0"/>
+  </group_state>
+
+  <!-- Slightly folded, away from the stretched-out singularity: the pose the
+       simulation and the mock hardware start in. -->
+  <group_state name="home" group="arm">
+    <joint name="joint_1" value="0.0"/>
+    <joint name="joint_2" value="-0.4"/>
+    <joint name="joint_3" value="0.9"/>
+    <joint name="joint_4" value="0.0"/>
+    <joint name="joint_5" value="1.0"/>
+    <joint name="joint_6" value="0.0"/>
+  </group_state>
+
+  <!-- Reaching forward, a good starting point for Cartesian motions. -->
+  <group_state name="ready" group="arm">
+    <joint name="joint_1" value="0.0"/>
+    <joint name="joint_2" value="0.6"/>
+    <joint name="joint_3" value="-0.9"/>
+    <joint name="joint_4" value="0.0"/>
+    <joint name="joint_5" value="0.9"/>
+    <joint name="joint_6" value="0.0"/>
+  </group_state>
+
+  <!-- Compact transport pose. -->
+  <group_state name="folded" group="arm">
+    <joint name="joint_1" value="0.0"/>
+    <joint name="joint_2" value="-1.4"/>
+    <joint name="joint_3" value="2.4"/>
+    <joint name="joint_4" value="0.0"/>
+    <joint name="joint_5" value="1.5"/>
+    <joint name="joint_6" value="0.0"/>
+  </group_state>
+
+  <!-- ===================== Collision matrix ============================
+       Adjacent links are always in contact, so checking them wastes time and
+       would make every state look invalid.  Non-adjacent pairs are left
+       enabled on purpose: self-collision checking is what stops the planner
+       from folding the wrist into the forearm.
+       ================================================================== -->
+  <disable_collisions link1="base_link" link2="link_1" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="link_2" reason="Never"/>
+  <disable_collisions link1="link_1" link2="link_2" reason="Adjacent"/>
+  <disable_collisions link1="link_1" link2="link_3" reason="Never"/>
+  <disable_collisions link1="link_2" link2="link_3" reason="Adjacent"/>
+  <disable_collisions link1="link_3" link2="link_4" reason="Adjacent"/>
+  <disable_collisions link1="link_3" link2="link_5" reason="Never"/>
+  <disable_collisions link1="link_4" link2="link_5" reason="Adjacent"/>
+  <disable_collisions link1="link_4" link2="link_6" reason="Never"/>
+  <disable_collisions link1="link_5" link2="link_6" reason="Adjacent"/>
+  <disable_collisions link1="link_5" link2="gripper_mount_link" reason="Never"/>
+  <disable_collisions link1="link_6" link2="gripper_mount_link" reason="Adjacent"/>
+
+</robot>

@@ -1,0 +1,38 @@
+# ============================================================================
+#  How MoveIt executes a planned trajectory.
+#
+#  It hands the trajectory to the SAME `arm_controller` in both modes: in
+#  simulation that controller runs inside the Gazebo plugin, on the real robot
+#  inside ros2_control_node.  This file is the seam where "planning" becomes
+#  "execution", and it is deliberately backend-agnostic.
+# ============================================================================
+moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControllerManager
+
+moveit_simple_controller_manager:
+  controller_names:
+    - arm_controller
+
+  arm_controller:
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
+    default: true
+    joints:
+      - joint_1
+      - joint_2
+      - joint_3
+      - joint_4
+      - joint_5
+      - joint_6
+
+# ---------------------------------------------------------------------------
+# Execution behaviour
+# ---------------------------------------------------------------------------
+trajectory_execution:
+  # A geared arm lags behind its setpoint; too tight a tolerance aborts
+  # perfectly good motions.
+  allowed_execution_duration_scaling: 1.5
+  allowed_goal_duration_margin: 0.5
+  allowed_start_tolerance: 0.02
+  execution_duration_monitoring: true
+
+moveit_manage_controllers: true

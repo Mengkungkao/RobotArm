@@ -1,0 +1,25 @@
+# ============================================================================
+#  Inverse kinematics solver for the `arm` group.
+#
+#  KDL is used because it ships with MoveIt and needs no code generation, and
+#  because this arm has a spherical wrist (joints 4/5/6 intersect at the
+#  joint_5 origin), which makes the numerical solution well conditioned.
+#
+#  Faster or more complete alternatives, drop-in by changing one line:
+#    pick_ik/PickIkPlugin                     - gradient + local search
+#    trac_ik_kinematics_plugin/TRAC_IKKinematicsPlugin
+#    <your_robot>_ikfast_plugin/IKFastKinematicsPlugin - analytic, microseconds
+# ============================================================================
+arm:
+  kinematics_solver: kdl_kinematics_plugin/KDLKinematicsPlugin
+
+  # Discretisation used when searching for a solution along the redundant
+  # direction.  Smaller = more likely to find a solution, slower.
+  kinematics_solver_search_resolution: 0.005
+
+  # Per-attempt time budget.  Kept small so a single IK query cannot stall an
+  # interactive planning session.
+  kinematics_solver_timeout: 0.05
+
+  # Retries with a different random seed before declaring the pose unreachable.
+  kinematics_solver_attempts: 3
