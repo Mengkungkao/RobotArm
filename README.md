@@ -181,15 +181,25 @@ against simulated drives.
 
 ## Installing ROS 2, Gazebo and MoveIt 2
 
+Add the ROS 2 apt repository with the official `ros2-apt-source` package. Do
+**not** use the older `curl ros.key` + `echo ... > /etc/apt/sources.list.d/ros2.list`
+recipe that still circulates: `ros2-apt-source` ships the signing key inline and
+updates it when it rotates, and running both methods breaks `apt` outright —
+see [Troubleshooting](#troubleshooting).
+
 ```bash
 # --- ROS 2 Humble ---------------------------------------------------------
 sudo apt update && sudo apt install -y software-properties-common curl
 sudo add-apt-repository universe
-sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-    -o /usr/share/keyrings/ros-archive-keyring.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
-http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" \
-    | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+# Official apt source (supersedes the hand-rolled key + ros2.list method)
+export ROS_APT_SOURCE_VERSION=$(
+    curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest \
+    | grep -F '"tag_name"' | awk -F'"' '{print $4}')
+curl -L -o /tmp/ros2-apt-source.deb \
+    "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo $UBUNTU_CODENAME)_all.deb"
+sudo dpkg -i /tmp/ros2-apt-source.deb && rm /tmp/ros2-apt-source.deb
+
 sudo apt update
 sudo apt install -y ros-humble-desktop ros-dev-tools
 
@@ -219,13 +229,21 @@ gazebo --version
 ros2 pkg list | grep -E "moveit_ros_move_group|gazebo_ros2_control"
 ```
 
+Exactly one file should describe the ROS repo. If this prints more than
+`/etc/apt/sources.list.d/ros2.sources`, delete the extras — two files naming the
+same repo with different `Signed-By` values make every `apt update` fail:
+
+```bash
+grep -rl "packages.ros.org" /etc/apt/sources.list /etc/apt/sources.list.d/
+```
+
 ---
 
 ## Workspace setup and build
 
 ```bash
-git clone <this-repository> ~/robot_arm_project
-cd ~/robot_arm_project/robot_arm_ws
+git clone <this-repository> ~/RobotArm
+cd ~/RobotArm/robot_arm_ws
 
 source /opt/ros/humble/setup.bash
 rosdep update
@@ -845,6 +863,29 @@ python3 -m flake8 --max-line-length=99 .
 ---
 
 ## Troubleshooting
+
+**`apt update` fails with "Conflicting values set for option Signed-By".**
+Two files describe the `packages.ros.org` repo with different keys: the official
+deb822 `/etc/apt/sources.list.d/ros2.sources` (from the `ros2-apt-source`
+package) and a legacy one-line `ros2.list` left by the older
+`curl ros.key` install recipe. Keep the first, delete the second — nothing is
+uninstalled by removing a source file, and `ros2.sources` already covers the
+same repo:
+
+```bash
+sudo rm /etc/apt/sources.list.d/ros2.list /usr/share/keyrings/ros-archive-keyring.gpg
+sudo apt update
+```
+
+If it comes back, something re-ran the legacy recipe. See
+[Installing ROS 2, Gazebo and MoveIt 2](#installing-ros-2-gazebo-and-moveit-2).
+
+**`ros2 pkg list` shows packages from another robot project.**
+A colcon `install/setup.bash` replays the underlay chain recorded when that
+workspace was built, so sourcing it can drag in unrelated workspaces. Source
+`install/local_setup.bash` instead — it adds only that workspace's own packages.
+This matters when several ROS projects share one machine; give each its own
+`ROS_DOMAIN_ID` so their nodes cannot see each other either.
 
 **The robot does not appear in RViz.**
 Set **Fixed Frame** to `world` or `base_link`. Then check that the description

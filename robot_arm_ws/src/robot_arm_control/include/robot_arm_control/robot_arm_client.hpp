@@ -63,7 +63,16 @@ public:
     double service_timeout{5.0};
   };
 
-  RobotArmClient(const rclcpp::Node::SharedPtr & node, Options options = Options());
+  RobotArmClient(const rclcpp::Node::SharedPtr & node, Options options);
+
+  /// Same, with default Options.
+  ///
+  /// A delegating overload rather than `Options options = Options()`: a
+  /// default argument is parsed before the enclosing class is complete, so it
+  /// cannot use Options' default member initializers and GCC rejects it. An
+  /// inline mem-initializer is a complete-class context, so this one can.
+  explicit RobotArmClient(const rclcpp::Node::SharedPtr & node)
+  : RobotArmClient(node, Options{}) {}
 
   // -- motion -------------------------------------------------------------
 

@@ -44,6 +44,16 @@ def generate_launch_description():
             value = context.launch_configurations.get(name, '')
             if value != '':
                 arguments[name] = value
+            else:
+                # Declaring these with an empty default puts '' into this
+                # launch context, and IncludeLaunchDescription passes the
+                # surrounding configurations down into bringup.launch.py --
+                # where its own DeclareLaunchArgument sees a value already set
+                # and keeps the empty string instead of applying its default.
+                # An empty string is not a valid condition expression, so
+                # IfCondition then fails the whole launch. Drop the unset ones
+                # so the included file's defaults actually apply.
+                context.launch_configurations.pop(name, None)
         return [
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([bringup]),
