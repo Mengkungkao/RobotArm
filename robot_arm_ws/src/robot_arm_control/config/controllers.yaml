@@ -87,4 +87,8 @@ velocity_controller:
 joint_state_broadcaster:
   ros__parameters:
     use_local_topics: false
-    extra_joints: []
+    # No extra_joints entry on purpose: an empty YAML sequence has no
+    # inferrable element type, so rclcpp cannot build a ParameterValue for it
+    # and ros2_control_node aborts at startup with
+    #   parameter_value_from failed for parameter 'extra_joints'
+    # The parameter is optional and already defaults to an empty list.

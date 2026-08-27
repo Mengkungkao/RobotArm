@@ -296,7 +296,10 @@ ros2 launch robot_arm_description display.launch.py
 Everything at once — Gazebo, ros2_control, MoveIt and RViz:
 
 ```bash
-source ~/robot_arm_project/robot_arm_ws/install/setup.bash
+source /opt/ros/humble/setup.bash
+# local_setup, not setup: a colcon `setup.bash` replays the underlay chain
+# recorded at build time, pulling in unrelated workspaces.
+source ~/RobotArm/robot_arm_ws/install/local_setup.bash
 ros2 launch robot_arm_bringup sim.launch.py
 ```
 
@@ -812,7 +815,7 @@ xacro robot_arm.urdf.xacro hardware_type:=real \
 ## Testing
 
 ```bash
-cd ~/robot_arm_project/robot_arm_ws
+cd ~/RobotArm/robot_arm_ws
 colcon test
 colcon test-result --verbose
 
