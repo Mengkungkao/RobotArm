@@ -1,0 +1,32 @@
+digraph G {
+node [shape=box];
+"base_link" [label="base_link"];
+"link_1" [label="link_1"];
+"link_2" [label="link_2"];
+"link_3" [label="link_3"];
+"link_4" [label="link_4"];
+"link_5" [label="link_5"];
+"link_6" [label="link_6"];
+"tool0" [label="tool0"];
+"gripper_mount_link" [label="gripper_mount_link"];
+"tool_tip" [label="tool_tip"];
+node [shape=ellipse, color=blue, fontcolor=blue];
+"base_link" -> "joint_1" [label="xyz: 0 0 0.1 \nrpy: 0 -0 0"]
+"joint_1" -> "link_1"
+"link_1" -> "joint_2" [label="xyz: 0 0 0.12 \nrpy: 0 -0 0"]
+"joint_2" -> "link_2"
+"link_2" -> "joint_3" [label="xyz: 0 0 0.3 \nrpy: 0 -0 0"]
+"joint_3" -> "link_3"
+"link_3" -> "joint_4" [label="xyz: 0 0 0.28 \nrpy: 0 -0 0"]
+"joint_4" -> "link_4"
+"link_4" -> "joint_5" [label="xyz: 0 0 0.1 \nrpy: 0 -0 0"]
+"joint_5" -> "link_5"
+"link_5" -> "joint_6" [label="xyz: 0 0 0.08 \nrpy: 0 -0 0"]
+"joint_6" -> "link_6"
+"link_6" -> "joint_tool0" [label="xyz: 0 0 0.05 \nrpy: 0 -0 0"]
+"joint_tool0" -> "tool0"
+"tool0" -> "joint_gripper_mount" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"joint_gripper_mount" -> "gripper_mount_link"
+"gripper_mount_link" -> "joint_tool_tip" [label="xyz: 0 0 0.12 \nrpy: 0 -0 0"]
+"joint_tool_tip" -> "tool_tip"
+}
