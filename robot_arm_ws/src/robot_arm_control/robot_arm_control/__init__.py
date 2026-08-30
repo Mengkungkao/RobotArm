@@ -10,10 +10,12 @@ in `robot_arm_control.transforms` stay usable in contexts where rclpy is not
 importable - offline unit tests, tooling, documentation builds.
 """
 
+from .kinematics import ArmModel
 from .transforms import (euler_from_quaternion, normalize_quaternion,
                          quaternion_from_euler, quaternion_multiply)
 
 __all__ = [
+    'ArmModel',
     'RobotArm',
     'MoveResult',
     'JointStates',

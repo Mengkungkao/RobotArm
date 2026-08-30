@@ -475,6 +475,51 @@ answer, not an error.
 
 ---
 
+## Checking the physics
+
+The model is meant to behave like the machine it describes, so the parts that
+make that true are computed and tested rather than hand-written.
+
+**Inertia.** Each link's tensor is derived from the primitives it is actually
+built from — centre of mass, principal moments and products of inertia —
+summed with the parallel axis theorem into `config/inertia.yaml`:
+
+```bash
+xacro urdf/robot_arm.urdf.xacro > /tmp/arm.urdf
+ros2 run robot_arm_description compute_inertia.py /tmp/arm.urdf config/robot.yaml \
+    > config/inertia.yaml
+```
+
+Masses stay a design input; the distribution comes from the geometry. A test
+regenerates the file and fails if a dimension changed without it.
+
+**Kinematics and statics.** `robot_arm_control.kinematics.ArmModel` reads the
+URDF with no ROS, no simulator and no solver, which is what makes the machine
+checkable:
+
+```python
+from robot_arm_control.kinematics import ArmModel
+
+arm = ArmModel.from_urdf('/tmp/arm.urdf')
+arm.tool_pose(q)                      # 4x4 homogeneous, base -> tool0
+arm.jacobian(q)                       # 6xN geometric, linear rows then angular
+arm.gravity_torque(q, payload=5.0)    # Nm at each joint, holding still
+```
+
+What the tests then assert about this arm:
+
+| Property | Result |
+| --- | --- |
+| Tool at all-zeros | (0.042, 0, 1.380) m — the cranked offset plus the summed links |
+| Reach from axis 2 | 0.94–1.02 m across the workspace |
+| Wrist | joints 4 and 6 leave the wrist centre fixed — genuinely spherical |
+| Jacobian | matches central differences of the pose it differentiates, linear and angular |
+| Worst static load, 5 kg payload | `joint_2` 152 Nm of 300 — 51%, leaving margin to accelerate |
+| Every tensor | positive definite and obeys the triangle inequality |
+
+The last one matters: a physics engine does not reject an impossible inertia,
+it goes unstable instead.
+
 ## Python API
 
 ```python

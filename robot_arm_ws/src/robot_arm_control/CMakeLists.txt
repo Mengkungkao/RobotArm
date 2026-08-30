@@ -111,6 +111,9 @@ if(BUILD_TESTING)
     TIMEOUT 60 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   ament_add_pytest_test(test_python_api test/test_python_api.py
     TIMEOUT 120 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  # Kinematics, the Jacobian and the static load the drives have to hold.
+  ament_add_pytest_test(test_kinematics test/test_kinematics.py
+    TIMEOUT 180 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
 
 ament_export_dependencies(rclcpp robot_arm_msgs robot_arm_interfaces)
