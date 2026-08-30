@@ -9,8 +9,10 @@ canonical joint names, a valid single-root TF tree, complete joint limits and
 the correct ros2_control plugin per mode.
 """
 
+import math
 import os
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 
 import pytest
@@ -249,6 +251,124 @@ def test_total_mass_is_realistic(urdf):
         float(link.find('inertial').find('mass').get('value'))
         for link in urdf.findall('link') if link.find('inertial') is not None)
     assert 35.0 < total < 70.0, f'total mass {total:.1f} kg is not plausible'
+
+
+# ---------------------------------------------------------------------------
+# Inertia: the numbers a physics engine actually integrates
+# ---------------------------------------------------------------------------
+
+def principal_moments(tensor):
+    """Eigenvalues of a symmetric 3x3, by cyclic Jacobi rotation."""
+    a = [row[:] for row in tensor]
+    for _ in range(60):
+        p, q, largest = 0, 1, 0.0
+        for i in range(3):
+            for j in range(i + 1, 3):
+                if abs(a[i][j]) > largest:
+                    p, q, largest = i, j, abs(a[i][j])
+        if largest < 1e-15:
+            break
+        theta = 0.5 * math.atan2(2 * a[p][q], a[q][q] - a[p][p])
+        c, s = math.cos(theta), math.sin(theta)
+        rotation = [[1.0 if i == j else 0.0 for j in range(3)] for i in range(3)]
+        rotation[p][p] = rotation[q][q] = c
+        rotation[p][q], rotation[q][p] = s, -s
+        a = [[sum(rotation[k][i] * a[k][m] * rotation[m][j]
+                  for k in range(3) for m in range(3)) for j in range(3)] for i in range(3)]
+    return sorted(a[i][i] for i in range(3))
+
+
+def tensor_of(link):
+    entry = link.find('inertial').find('inertia')
+
+    def value(key):
+        return float(entry.get(key))
+
+    return [[value('ixx'), value('ixy'), value('ixz')],
+            [value('ixy'), value('iyy'), value('iyz')],
+            [value('ixz'), value('iyz'), value('izz')]]
+
+
+def test_every_inertia_tensor_is_physically_valid(urdf):
+    """A tensor that is not positive definite, or breaks the triangle
+    inequality on its principal moments, describes a body that cannot exist.
+    Physics engines do not reject them - they go unstable instead."""
+    for link in urdf.findall('link'):
+        if link.find('inertial') is None:
+            continue
+        name = link.get('name')
+        moments = principal_moments(tensor_of(link))
+        assert moments[0] > 0.0, f'{name}: inertia is not positive definite'
+        assert moments[0] + moments[1] >= moments[2] * (1.0 - 1e-9), (
+            f'{name}: principal moments {moments} break the triangle inequality')
+
+
+def test_composite_links_carry_products_of_inertia(urdf):
+    """link_3 is a forearm tube offset in X plus a shaft lying across Y.  Its
+    tensor must reflect that; a symmetric one means somebody replaced the real
+    geometry with a single equivalent solid again."""
+    links = {link.get('name'): link for link in urdf.findall('link')}
+    ixz = tensor_of(links['link_3'])[0][2]
+    assert abs(ixz) > 1e-4, (
+        'link_3 has no product of inertia: the mass distribution is being faked')
+
+
+def test_centres_of_mass_sit_inside_the_link(urdf):
+    """A centre of mass outside the geometry is the usual symptom of a hand
+    written inertial that no longer matches the shape."""
+    for link in urdf.findall('link'):
+        inertial = link.find('inertial')
+        if inertial is None:
+            continue
+        origin = inertial.find('origin')
+        com = [float(v) for v in (origin.get('xyz') or '0 0 0').split()]
+        extent = []
+        for visual in link.findall('visual'):
+            vorigin = visual.find('origin')
+            centre = [float(v) for v in ((vorigin.get('xyz') if vorigin is not None else None)
+                                         or '0 0 0').split()]
+            geometry = visual.find('geometry')
+            if geometry.find('box') is not None:
+                reach = max(float(v) for v in geometry.find('box').get('size').split())
+            elif geometry.find('cylinder') is not None:
+                cylinder = geometry.find('cylinder')
+                reach = max(float(cylinder.get('radius')) * 2, float(cylinder.get('length')))
+            else:
+                continue
+            extent.append((centre, reach))
+        if not extent:
+            continue
+        closest = min(math.dist(com, centre) - reach for centre, reach in extent)
+        assert closest <= 0.0, (
+            f'{link.get("name")}: centre of mass {com} lies outside its geometry')
+
+
+def test_inertia_file_still_matches_the_geometry():
+    """Regenerate the tensors and compare.  Changing a dimension without
+    re-running compute_inertia.py leaves the model with the inertia of a robot
+    that no longer exists."""
+    import subprocess
+    package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    script = os.path.join(package_root, 'scripts', 'compute_inertia.py')
+    committed = os.path.join(package_root, 'config', 'inertia.yaml')
+    if not (os.path.exists(script) and os.path.exists(committed)):
+        pytest.skip('compute_inertia.py or inertia.yaml is not available')
+
+    document = xacro.process_file(_xacro_path(), mappings={'hardware_type': 'mock'})
+    with tempfile.NamedTemporaryFile('w', suffix='.urdf', delete=False) as handle:
+        handle.write(document.toxml())
+        expanded = handle.name
+    try:
+        done = subprocess.run(
+            [sys.executable, script, expanded,
+             os.path.join(package_root, 'config', 'robot.yaml')],
+            capture_output=True, text=True)
+        assert done.returncode == 0, done.stderr
+        with open(committed) as handle:
+            assert handle.read() == done.stdout, (
+                'config/inertia.yaml is stale: re-run compute_inertia.py')
+    finally:
+        os.unlink(expanded)
 
 
 # ---------------------------------------------------------------------------

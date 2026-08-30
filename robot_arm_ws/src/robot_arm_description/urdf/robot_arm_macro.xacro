@@ -95,13 +95,14 @@
   <!-- =====================================================================
        The arm itself.
        ===================================================================== -->
-  <xacro:macro name="robot_arm" params="prefix robot_config_file use_gripper_mount:=true
-                                        use_motors:=true">
+  <xacro:macro name="robot_arm" params="prefix robot_config_file inertia_file
+                                        use_gripper_mount:=true use_motors:=true">
 
     <xacro:property name="cfg" value="${xacro.load_yaml(robot_config_file)}"/>
+    <!-- Tensors computed from the real geometry; see inertials.xacro. -->
+    <xacro:property name="inr" value="${xacro.load_yaml(inertia_file)['inertial']}"/>
     <xacro:property name="kin" value="${cfg['kinematics']}"/>
     <xacro:property name="geom" value="${cfg['geometry']}"/>
-    <xacro:property name="inr" value="${cfg['inertial']}"/>
     <xacro:property name="jnt" value="${cfg['joints']}"/>
     <xacro:property name="grip" value="${cfg['gripper_mount']}"/>
 
@@ -282,7 +283,7 @@
     <!-- Drive units                                                      -->
     <!-- ================================================================ -->
     <xacro:if value="${use_motors}">
-      <xacro:robot_arm_motors prefix="${prefix}" motors="${cfg['motors']}"/>
+      <xacro:robot_arm_motors prefix="${prefix}" motors="${cfg['motors']}" inertia="${inr}"/>
     </xacro:if>
 
     <!-- ================================================================ -->
@@ -295,12 +296,7 @@
           length="${grip['plate_thickness']}"
           xyz="0 0 ${grip['plate_thickness'] / 2.0}"
           material="arm_blue"/>
-        <xacro:cylinder_inertial
-          mass="${grip['plate_mass']}"
-          radius="${grip['plate_radius']}"
-          length="${grip['plate_thickness']}">
-          <origin xyz="0 0 ${grip['plate_thickness'] / 2.0}" rpy="0 0 0"/>
-        </xacro:cylinder_inertial>
+        <xacro:link_inertial spec="${inr['gripper_mount_link']}"/>
       </link>
 
       <joint name="${prefix}joint_gripper_mount" type="fixed">

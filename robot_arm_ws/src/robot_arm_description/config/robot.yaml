@@ -102,58 +102,26 @@ gripper_mount:
   tip_offset: 0.120         # tool0 -> tool_tip distance along Z
 
 # ---------------------------------------------------------------------------
-# Inertial properties.
+# Link masses [kg].
 #
-# A URDF link carries exactly one inertial, so each composite link declares
-# the equivalent solid its tensor is derived from, and where its centre of
-# mass sits.  `shape` is `box` (size = x, y, z) or `cylinder` (radius,
-# length, extruded along the link's own Z).
+# These are inputs: the mass of each casting as designed.  The inertia tensors
+# are NOT written here - they are computed from the actual shape of each link
+# by scripts/compute_inertia.py into config/inertia.yaml, because a link
+# assembled from several primitives cannot be described honestly by a single
+# equivalent solid.  A test regenerates that file and fails if it drifts.
 #
-# The masses add up to ~52 kg including the drives, which is the right order
-# for a machine of this size - a model that is an order of magnitude too light
-# will happily plan trajectories the real arm cannot follow.
+# They add up to ~52 kg with the drives, which is the right order for a
+# machine of this size: a model an order of magnitude too light will happily
+# plan trajectories the real arm cannot follow.
 # ---------------------------------------------------------------------------
-inertial:
-  base_link:
-    mass: 15.0
-    com: [0.0, 0.0, 0.060]
-    shape: cylinder
-    radius: 0.095
-    length: 0.115
-  link_1:
-    mass: 9.0
-    com: [0.0, 0.0, 0.140]
-    shape: box
-    size: [0.170, 0.190, 0.284]
-  link_2:
-    mass: 7.5
-    com: [0.0, 0.0, 0.200]
-    shape: box
-    size: [0.110, 0.140, 0.448]
-  link_3:
-    mass: 5.5
-    com: [0.030, 0.0, 0.170]
-    shape: cylinder
-    radius: 0.060
-    length: 0.391
-  link_4:
-    mass: 1.8
-    com: [0.0, 0.0, 0.030]
-    shape: cylinder
-    radius: 0.050
-    length: 0.060
-  link_5:
-    mass: 1.2
-    com: [0.0, 0.0, 0.030]
-    shape: cylinder
-    radius: 0.045
-    length: 0.062
-  link_6:
-    mass: 0.35
-    com: [0.0, 0.0, 0.010]
-    shape: cylinder
-    radius: 0.0315
-    length: 0.020
+mass:
+  base_link: 15.00
+  link_1: 9.00
+  link_2: 7.50
+  link_3: 5.50
+  link_4: 1.80
+  link_5: 1.20
+  link_6: 0.35
 
 # ---------------------------------------------------------------------------
 # Drive units.

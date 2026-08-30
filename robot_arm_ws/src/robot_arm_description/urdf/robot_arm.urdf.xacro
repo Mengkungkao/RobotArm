@@ -58,6 +58,8 @@
        machine without touching a single line of XML. -->
   <xacro:arg name="robot_config_file"
              default="$(find robot_arm_description)/config/robot.yaml"/>
+  <xacro:arg name="inertia_file"
+             default="$(find robot_arm_description)/config/inertia.yaml"/>
   <xacro:arg name="initial_positions_file"
              default="$(find robot_arm_description)/config/initial_positions.yaml"/>
   <xacro:arg name="hardware_config_file"
@@ -95,6 +97,7 @@
   <xacro:robot_arm
     prefix="${prefix}"
     robot_config_file="$(arg robot_config_file)"
+    inertia_file="$(arg inertia_file)"
     use_gripper_mount="$(arg use_gripper_mount)"
     use_motors="$(arg use_motors)"/>
 

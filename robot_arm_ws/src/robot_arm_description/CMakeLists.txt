@@ -14,6 +14,7 @@ install(
   PROGRAMS
     scripts/urdf_preview.py
     scripts/compact_xacro.py
+    scripts/compute_inertia.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

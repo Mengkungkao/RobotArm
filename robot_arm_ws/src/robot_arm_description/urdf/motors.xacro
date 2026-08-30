@@ -25,7 +25,7 @@
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <xacro:macro name="drive_unit" params="name parent spec use_collision">
+  <xacro:macro name="drive_unit" params="name parent spec inertial use_collision">
 
     <link name="${name}">
 
@@ -57,13 +57,9 @@
         </collision>
       </xacro:if>
 
-      <!-- One inertial for the whole assembly, about its combined centre. -->
-      <xacro:cylinder_inertial
-        mass="${spec['mass']}"
-        radius="${spec['gearbox_radius']}"
-        length="${spec['gearbox_length'] + spec['length']}">
-        <origin xyz="0 0 ${(spec['gearbox_length'] + spec['length']) / 2.0}" rpy="0 0 0"/>
-      </xacro:cylinder_inertial>
+      <!-- Gearbox and motor body summed into one tensor about their combined
+           centre of mass; see inertials.xacro. -->
+      <xacro:link_inertial spec="${inertial}"/>
     </link>
 
     <joint name="${name}_mount" type="fixed">
@@ -76,19 +72,25 @@
   </xacro:macro>
 
   <!-- All six drives, mounted on the links named in robot.yaml. -->
-  <xacro:macro name="robot_arm_motors" params="prefix motors">
+  <xacro:macro name="robot_arm_motors" params="prefix motors inertia">
     <xacro:drive_unit name="${prefix}motor_1" parent="${prefix}${motors['joint_1']['parent']}"
-                      spec="${motors['joint_1']}" use_collision="${motors['use_collision']}"/>
+                      spec="${motors['joint_1']}" inertial="${inertia['motor_1']}"
+                      use_collision="${motors['use_collision']}"/>
     <xacro:drive_unit name="${prefix}motor_2" parent="${prefix}${motors['joint_2']['parent']}"
-                      spec="${motors['joint_2']}" use_collision="${motors['use_collision']}"/>
+                      spec="${motors['joint_2']}" inertial="${inertia['motor_2']}"
+                      use_collision="${motors['use_collision']}"/>
     <xacro:drive_unit name="${prefix}motor_3" parent="${prefix}${motors['joint_3']['parent']}"
-                      spec="${motors['joint_3']}" use_collision="${motors['use_collision']}"/>
+                      spec="${motors['joint_3']}" inertial="${inertia['motor_3']}"
+                      use_collision="${motors['use_collision']}"/>
     <xacro:drive_unit name="${prefix}motor_4" parent="${prefix}${motors['joint_4']['parent']}"
-                      spec="${motors['joint_4']}" use_collision="${motors['use_collision']}"/>
+                      spec="${motors['joint_4']}" inertial="${inertia['motor_4']}"
+                      use_collision="${motors['use_collision']}"/>
     <xacro:drive_unit name="${prefix}motor_5" parent="${prefix}${motors['joint_5']['parent']}"
-                      spec="${motors['joint_5']}" use_collision="${motors['use_collision']}"/>
+                      spec="${motors['joint_5']}" inertial="${inertia['motor_5']}"
+                      use_collision="${motors['use_collision']}"/>
     <xacro:drive_unit name="${prefix}motor_6" parent="${prefix}${motors['joint_6']['parent']}"
-                      spec="${motors['joint_6']}" use_collision="${motors['use_collision']}"/>
+                      spec="${motors['joint_6']}" inertial="${inertia['motor_6']}"
+                      use_collision="${motors['use_collision']}"/>
   </xacro:macro>
 
 </robot>
