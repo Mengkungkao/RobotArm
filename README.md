@@ -132,19 +132,44 @@ robot_arm_ws/
 
 ### The robot
 
-| Joint | Function | Axis | Range | Max velocity |
-| --- | --- | --- | --- | --- |
-| `joint_1` | base rotation | Z | ±180° | 2.60 rad/s |
-| `joint_2` | shoulder | Y | ±120° | 2.20 rad/s |
-| `joint_3` | elbow | Y | ±150° | 2.60 rad/s |
-| `joint_4` | wrist rotation | Z | ±180° | 3.20 rad/s |
-| `joint_5` | wrist pitch | Y | ±120° | 3.20 rad/s |
-| `joint_6` | wrist rotation | Z | ±180° | 3.20 rad/s |
+| Joint | Function | Axis | Range | Max velocity | Max effort |
+| --- | --- | --- | --- | --- | --- |
+| `joint_1` | base rotation | Z | ±170° | 5.03 rad/s | 300 Nm |
+| `joint_2` | shoulder | Y | -100° … +135° | 4.19 rad/s | 300 Nm |
+| `joint_3` | elbow | Y | -200° … +70° | 5.18 rad/s | 150 Nm |
+| `joint_4` | wrist rotation | Z | ±270° | 6.98 rad/s | 40 Nm |
+| `joint_5` | wrist bend | Y | ±130° | 7.07 rad/s | 40 Nm |
+| `joint_6` | tool rotation | Z | ±400° | 10.47 rad/s | 20 Nm |
 
 Frames: `world → base_link → link_1 … link_6 → tool0 → gripper_mount_link →
-tool_tip`. Joints 4/5/6 form a spherical wrist (their axes intersect at the
-`joint_5` origin), which keeps inverse kinematics well conditioned. Reach is
-roughly 0.81 m horizontally with the default dimensions.
+tool_tip`, plus `motor_1 … motor_6` rigidly attached to the links that carry
+them.
+
+The proportions, envelope and drive train follow the classic **ABB
+IRB-1200 class**: 0.9 m reach, ~5 kg payload, ~52 kg, a rotating column, a
+**cranked elbow** (the forearm is offset 42 mm from the elbow axis) and a
+compact three-roll wrist. Joints 4/5/6 form a spherical wrist — their axes
+intersect at the `joint_5` origin — which keeps inverse kinematics well
+conditioned. The whole shape is built from primitives: it carries no vendor
+mesh, badge or branding, and it is not affiliated with ABB.
+
+| | |
+| --- | --- |
+| Reach (axis 2 → wrist centre) | 0.899 m |
+| Height of axis 2 | 0.399 m |
+| Wrist centre → flange | 0.082 m |
+| Total mass incl. drives | 51.9 kg |
+| Drive units | 6, 11.5 kg combined |
+
+The six servo/gearbox assemblies are real links with mass and inertia, so the
+dynamics account for them instead of pretending the drives are weightless.
+Their `motor_id` is the same id the driver addresses on the bus, and a test
+fails the build if the two ever disagree. Render the model without RViz:
+
+```bash
+xacro urdf/robot_arm.urdf.xacro > /tmp/arm.urdf
+ros2 run robot_arm_description urdf_preview.py /tmp/arm.urdf /tmp/arm.png 0,40,-60,0,45,0
+```
 
 ---
 

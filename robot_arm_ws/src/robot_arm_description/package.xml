@@ -23,6 +23,9 @@
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
 
+  <!-- Optional: only needed by scripts/urdf_preview.py. -->
+  <exec_depend>python3-pil</exec_depend>
+
   <!-- NOTE: this package is deliberately a leaf of the workspace dependency
        graph - every other package depends on the description, so it must not
        depend back on any of them.

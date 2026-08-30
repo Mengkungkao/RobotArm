@@ -18,6 +18,7 @@ import yaml
 
 JOINT_NAMES = ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6']
 LINK_NAMES = ['base_link', 'link_1', 'link_2', 'link_3', 'link_4', 'link_5', 'link_6']
+MOTOR_LINKS = ['motor_1', 'motor_2', 'motor_3', 'motor_4', 'motor_5', 'motor_6']
 
 PKG_SHARE = None
 
@@ -182,6 +183,138 @@ def test_gripper_mount_is_optional(urdf):
     links = {link.get('name') for link in without.findall('link')}
     assert 'gripper_mount_link' not in links
     assert 'tool0' in links
+
+
+# ---------------------------------------------------------------------------
+# Industrial geometry: reach, the cranked elbow and the spherical wrist
+# ---------------------------------------------------------------------------
+
+def joint_origins(urdf):
+    origins = {}
+    for joint in urdf.findall('joint'):
+        origin = joint.find('origin')
+        xyz = (origin.get('xyz') if origin is not None else None) or '0 0 0'
+        origins[joint.get('name')] = [float(v) for v in xyz.split()]
+    return origins
+
+
+def test_joint_origins_come_from_the_kinematics_block(urdf):
+    """The chain is derived from `kinematics:`, so it can never drift out of
+    sync with the geometry that is drawn."""
+    kin = robot_config()['kinematics']
+    origins = joint_origins(urdf)
+
+    assert origins['joint_1'][2] == pytest.approx(kin['base_height'])
+    assert origins['joint_2'][2] == pytest.approx(kin['shoulder_height'])
+    assert origins['joint_3'][2] == pytest.approx(kin['upper_arm'])
+    assert origins['joint_4'][2] == pytest.approx(kin['forearm'])
+    assert origins['joint_5'][2] == pytest.approx(kin['wrist_housing'])
+    assert origins['joint_6'][2] == pytest.approx(kin['wrist_offset'])
+    assert origins['joint_tool0'][2] == pytest.approx(kin['flange'])
+
+
+def test_elbow_is_cranked_forward(urdf):
+    """The forearm is offset from the elbow axis - the signature of this class
+    of industrial arm, and the thing a purely coaxial model gets wrong."""
+    kin = robot_config()['kinematics']
+    assert kin['elbow_offset_x'] > 0.0
+    assert joint_origins(urdf)['joint_4'][0] == pytest.approx(kin['elbow_offset_x'])
+
+
+def test_wrist_is_spherical(urdf):
+    """Axes 4, 5 and 6 must intersect at one point - the origin of joint_5.
+
+    That holds exactly when joint_5 and joint_6 sit on their parent's Z axis,
+    and it is what keeps inverse kinematics well conditioned.
+    """
+    origins = joint_origins(urdf)
+    for joint in ('joint_5', 'joint_6'):
+        x, y, _ = origins[joint]
+        assert x == pytest.approx(0.0), f'{joint} is off the wrist axis in X'
+        assert y == pytest.approx(0.0), f'{joint} is off the wrist axis in Y'
+
+
+def test_reach_is_that_of_the_intended_machine(urdf):
+    kin = robot_config()['kinematics']
+    reach = kin['upper_arm'] + kin['forearm'] + kin['wrist_housing']
+    assert 0.85 < reach < 0.95, f'reach {reach:.3f} m is not an IRB-1200-class arm'
+    assert kin['base_height'] + kin['shoulder_height'] == pytest.approx(0.399, abs=0.02)
+
+
+def test_total_mass_is_realistic(urdf):
+    """A model an order of magnitude too light will plan trajectories the real
+    machine cannot follow."""
+    total = sum(
+        float(link.find('inertial').find('mass').get('value'))
+        for link in urdf.findall('link') if link.find('inertial') is not None)
+    assert 35.0 < total < 70.0, f'total mass {total:.1f} kg is not plausible'
+
+
+# ---------------------------------------------------------------------------
+# Drive units
+# ---------------------------------------------------------------------------
+
+def test_every_axis_has_a_drive_unit(urdf):
+    links = {link.get('name') for link in urdf.findall('link')}
+    for motor in MOTOR_LINKS:
+        assert motor in links, f'missing {motor}'
+
+
+def test_drive_units_are_attached_to_the_links_named_in_the_config(urdf):
+    motors = robot_config()['motors']
+    mounts = {
+        j.get('name'): j.find('parent').get('link')
+        for j in urdf.findall('joint') if j.get('name').endswith('_mount')
+    }
+    for index in range(1, 7):
+        joint = f'joint_{index}'
+        assert mounts[f'motor_{index}_mount'] == motors[joint]['parent']
+
+
+def test_drive_units_carry_their_mass(urdf):
+    """11.5 kg of drives, most of it high on the moving links: leaving it out
+    makes a simulated arm accelerate in ways the real one cannot."""
+    motors = robot_config()['motors']
+    links = {link.get('name'): link for link in urdf.findall('link')}
+    total = 0.0
+    for index in range(1, 7):
+        inertial = links[f'motor_{index}'].find('inertial')
+        assert inertial is not None, f'motor_{index} has no mass'
+        mass = float(inertial.find('mass').get('value'))
+        assert mass == pytest.approx(motors[f'joint_{index}']['mass'])
+        total += mass
+    assert total > 5.0
+
+
+def test_drive_units_have_no_collision_geometry_by_default(urdf):
+    """They sit inside the arm's own envelope, so collision-checking them
+    costs planning time without changing any result."""
+    assert robot_config()['motors']['use_collision'] is False
+    links = {link.get('name'): link for link in urdf.findall('link')}
+    for index in range(1, 7):
+        assert links[f'motor_{index}'].find('collision') is None
+
+
+def test_drive_unit_ids_match_the_driver_configuration():
+    """One set of six motors, described once for the model and once for the
+    driver - the ids must agree."""
+    motors = robot_config()['motors']
+    try:
+        share = _share('robot_arm_hardware')
+    except Exception:
+        pytest.skip('robot_arm_hardware is not installed')
+    with open(os.path.join(share, 'config', 'hardware.yaml')) as handle:
+        drives = yaml.safe_load(handle)['robot_arm_hardware']['joints']
+    for joint in JOINT_NAMES:
+        assert motors[joint]['motor_id'] == drives[joint]['motor_id']
+
+
+def test_drive_units_can_be_turned_off():
+    without = expand(hardware_type='mock', use_motors=False)
+    links = {link.get('name') for link in without.findall('link')}
+    assert not (links & set(MOTOR_LINKS))
+    for name in LINK_NAMES:
+        assert name in links
 
 
 # ---------------------------------------------------------------------------

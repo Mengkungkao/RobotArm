@@ -1,58 +1,95 @@
 # ============================================================================
 #  robot_arm - single source of truth for the mechanical description.
 #
-#  Every dimension, mass and joint limit used by the URDF/Xacro model lives
-#  here.  Nothing is hard-coded inside the Xacro files: they read this file
-#  with xacro.load_yaml() and build the model from it.
+#  Every dimension, mass, inertia and joint limit used by the URDF/Xacro model
+#  lives here.  Nothing mechanical is hard-coded in the Xacro files: they read
+#  this file with xacro.load_yaml() and build the model from it.
 #
 #  Units: SI  (metres, kilograms, radians, seconds, Newton-metres)
 #
-#  Kinematic structure (spherical wrist, so the wrist centre is the origin of
-#  joint_5, which makes the arm well conditioned for numerical IK):
+#  SHAPE AND SIZE
+#  ==============
+#  The proportions, the kinematic envelope and the drive train follow the
+#  classic ABB IRB-1200-class industrial arm: a ~0.9 m reach, ~5 kg payload,
+#  ~52 kg machine with a rotating column, an offset elbow and a compact
+#  three-roll wrist.  It is a representative model built from primitives, NOT
+#  a certified CAD model of any ABB product and not affiliated with ABB - it
+#  carries no vendor mesh, badge or branding.  Retarget it to your own machine
+#  by editing the numbers below; nothing else has to change.
 #
-#    base_link --j1(z)--> link_1 --j2(y)--> link_2 --j3(y)--> link_3
-#              --j4(z)--> link_4 --j5(y)--> link_5 --j6(z)--> link_6 --> tool0
+#  Kinematic structure - joints 4/5/6 form a spherical wrist whose centre is
+#  the origin of joint_5, which keeps inverse kinematics well conditioned:
+#
+#    base_link -[j1:Z]- link_1 -[j2:Y]- link_2 -[j3:Y]- link_3
+#              -[j4:Z]- link_4 -[j5:Y]- link_5 -[j6:Z]- link_6 -> tool0
 # ============================================================================
 
 robot:
   name: robot_arm
 
 # ---------------------------------------------------------------------------
-# Link geometry.  Every link is modelled as a cylinder of the given radius and
-# length, extruded along its own +Z axis.  `length` is also the distance to the
-# next joint, so the kinematic chain is derived from these numbers alone.
+# Kinematics.  These eight numbers ARE the arm: every joint origin is derived
+# from them, so the geometry below can never drift out of sync with the chain.
+#
+#   reach = upper_arm + forearm + wrist_housing  (0.448 + 0.391 + 0.060 = 0.899)
+#   axis 2 height = base_height + shoulder_height (0.115 + 0.284 = 0.399)
+#   wrist centre to flange = wrist_offset + flange (0.062 + 0.020 = 0.082)
 # ---------------------------------------------------------------------------
-geometry:
-  base:
-    radius: 0.090
-    length: 0.100
-  link_1:                 # shoulder yaw housing
-    radius: 0.065
-    length: 0.120
-  link_2:                 # upper arm
-    radius: 0.055
-    length: 0.300
-  link_3:                 # forearm
-    radius: 0.050
-    length: 0.280
-  link_4:                 # wrist roll housing
-    radius: 0.045
-    length: 0.100
-  link_5:                 # wrist pitch housing
-    radius: 0.040
-    length: 0.080
-  link_6:                 # tool flange
-    radius: 0.035
-    length: 0.050
+kinematics:
+  base_height: 0.115        # base_link -> joint_1  (top of the fixed base)
+  shoulder_height: 0.284    # joint_1   -> joint_2  (column height)
+  shoulder_offset_y: 0.0    # joint_1   -> joint_2  lateral offset
+  upper_arm: 0.448          # joint_2   -> joint_3
+  elbow_offset_x: 0.042     # joint_3   -> joint_4  forward offset of the forearm
+  forearm: 0.391            # joint_3   -> joint_4  along Z
+  wrist_housing: 0.060      # joint_4   -> joint_5  (joint_5 is the wrist centre)
+  wrist_offset: 0.062       # joint_5   -> joint_6
+  flange: 0.020             # joint_6   -> tool0
 
 # ---------------------------------------------------------------------------
-# Lateral offsets.  Keep them at 0.0 for a "textbook" arm; set them to match a
-# real machine that has its shoulder/elbow bearings off the sagittal plane.
+# Link geometry.  Each link is composed of a few primitives so the arm reads
+# as an industrial machine - a cast column, a tapered upper arm, a tubular
+# forearm - while staying cheap to simulate and to collision-check.
 # ---------------------------------------------------------------------------
-offsets:
-  shoulder_y: 0.0         # base_link -> joint_2 offset along Y
-  elbow_y: 0.0            # link_2    -> joint_3 offset along Y
-  tool_z: 0.0             # extra flange -> tool0 offset along Z
+geometry:
+  base:                     # fixed foot: mounting plate + lower housing
+    plate_radius: 0.105
+    plate_height: 0.035
+    housing_radius: 0.086
+    housing_height: 0.080
+
+  link_1:                   # rotating column carrying the shoulder
+    tower_x: 0.170
+    tower_y: 0.190
+    tower_z: 0.240
+    shoulder_radius: 0.077
+    shoulder_width: 0.200   # along Y
+
+  link_2:                   # upper arm
+    beam_x: 0.110
+    beam_y: 0.140
+    shoulder_radius: 0.077
+    shoulder_width: 0.190
+    elbow_radius: 0.070
+    elbow_width: 0.175
+
+  link_3:                   # elbow housing + tubular forearm
+    elbow_radius: 0.070
+    elbow_width: 0.170
+    forearm_radius: 0.055
+
+  link_4:                   # wrist roll housing
+    radius: 0.050
+    length: 0.060
+
+  link_5:                   # wrist bend housing
+    radius: 0.045
+    width: 0.100            # along Y, the bend yoke
+    length: 0.062
+
+  link_6:                   # tool flange (63 mm diameter, industrial standard)
+    radius: 0.0315
+    length: 0.020
 
 # ---------------------------------------------------------------------------
 # Optional gripper mounting interface (a flat mounting plate + `tool_tip`
@@ -62,19 +99,148 @@ gripper_mount:
   plate_radius: 0.038
   plate_thickness: 0.008
   plate_mass: 0.05
-  tip_offset: 0.120       # tool0 -> tool_tip distance along Z
+  tip_offset: 0.120         # tool0 -> tool_tip distance along Z
 
 # ---------------------------------------------------------------------------
-# Masses [kg].
+# Inertial properties.
+#
+# A URDF link carries exactly one inertial, so each composite link declares
+# the equivalent solid its tensor is derived from, and where its centre of
+# mass sits.  `shape` is `box` (size = x, y, z) or `cylinder` (radius,
+# length, extruded along the link's own Z).
+#
+# The masses add up to ~52 kg including the drives, which is the right order
+# for a machine of this size - a model that is an order of magnitude too light
+# will happily plan trajectories the real arm cannot follow.
 # ---------------------------------------------------------------------------
-mass:
-  base: 3.00
-  link_1: 1.80
-  link_2: 2.20
-  link_3: 1.40
-  link_4: 0.70
-  link_5: 0.50
-  link_6: 0.25
+inertial:
+  base_link:
+    mass: 15.0
+    com: [0.0, 0.0, 0.060]
+    shape: cylinder
+    radius: 0.095
+    length: 0.115
+  link_1:
+    mass: 9.0
+    com: [0.0, 0.0, 0.140]
+    shape: box
+    size: [0.170, 0.190, 0.284]
+  link_2:
+    mass: 7.5
+    com: [0.0, 0.0, 0.200]
+    shape: box
+    size: [0.110, 0.140, 0.448]
+  link_3:
+    mass: 5.5
+    com: [0.030, 0.0, 0.170]
+    shape: cylinder
+    radius: 0.060
+    length: 0.391
+  link_4:
+    mass: 1.8
+    com: [0.0, 0.0, 0.030]
+    shape: cylinder
+    radius: 0.050
+    length: 0.060
+  link_5:
+    mass: 1.2
+    com: [0.0, 0.0, 0.030]
+    shape: cylinder
+    radius: 0.045
+    length: 0.062
+  link_6:
+    mass: 0.35
+    com: [0.0, 0.0, 0.010]
+    shape: cylinder
+    radius: 0.0315
+    length: 0.020
+
+# ---------------------------------------------------------------------------
+# Drive units.
+#
+# One servo motor + gearbox assembly per axis, attached to the link that
+# carries it.  They are real links with mass and inertia, so the arm's
+# dynamics account for them instead of pretending the drives are weightless.
+#
+#   parent  : link the assembly is bolted to
+#   xyz/rpy : mounting pose on that link; the assembly extrudes along its own
+#             +Z, gearbox first, then the motor body
+#   mass    : motor + gearbox together
+#
+# `use_collision` is false by default: the drives sit inside the arm's own
+# swept envelope, so adding them to the collision model costs planning time
+# without changing any result.  Turning it on means regenerating the SRDF
+# collision matrix.
+#
+# The `motor_id` of each assembly is the same id the driver addresses on the
+# bus in robot_arm_hardware/config/hardware.yaml - one set of six motors,
+# described once for the model and once for the driver.
+# ---------------------------------------------------------------------------
+motors:
+  use_collision: false
+
+  joint_1:                  # base rotation: on the back of the rotating column,
+                            # driving a pinion against the fixed ring gear, so it
+                            # turns with the arm and clears the base casting
+    motor_id: 1
+    parent: link_1
+    xyz: [-0.116, 0.0, 0.045]
+    rpy: [0.0, 0.0, 0.0]
+    radius: 0.045
+    length: 0.120
+    gearbox_radius: 0.052
+    gearbox_length: 0.035
+    mass: 3.2
+  joint_2:                  # shoulder: on the side of the column
+    motor_id: 2
+    parent: link_1
+    xyz: [0.0, 0.105, 0.284]
+    rpy: [-1.5708, 0.0, 0.0]
+    radius: 0.044
+    length: 0.115
+    gearbox_radius: 0.052
+    gearbox_length: 0.032
+    mass: 3.2
+  joint_3:                  # elbow: on the side of the upper arm
+    motor_id: 3
+    parent: link_2
+    xyz: [0.0, 0.100, 0.448]
+    rpy: [-1.5708, 0.0, 0.0]
+    radius: 0.040
+    length: 0.100
+    gearbox_radius: 0.047
+    gearbox_length: 0.030
+    mass: 2.4
+  joint_4:                  # wrist roll: drive pack on the back of the forearm
+    motor_id: 4
+    parent: link_3
+    xyz: [-0.042, 0.0, 0.095]
+    rpy: [0.0, 0.0, 0.0]
+    radius: 0.034
+    length: 0.095
+    gearbox_radius: 0.039
+    gearbox_length: 0.026
+    mass: 1.2
+  joint_5:                  # wrist bend
+    motor_id: 5
+    parent: link_3
+    xyz: [-0.042, 0.0, 0.205]
+    rpy: [0.0, 0.0, 0.0]
+    radius: 0.030
+    length: 0.085
+    gearbox_radius: 0.035
+    gearbox_length: 0.024
+    mass: 0.9
+  joint_6:                  # tool roll
+    motor_id: 6
+    parent: link_3
+    xyz: [-0.042, 0.0, 0.300]
+    rpy: [0.0, 0.0, 0.0]
+    radius: 0.026
+    length: 0.075
+    gearbox_radius: 0.031
+    gearbox_length: 0.022
+    mass: 0.6
 
 # ---------------------------------------------------------------------------
 # Joint definition.  `axis` is expressed in the parent joint frame.
@@ -83,66 +249,75 @@ mass:
 #   effort      : maximum joint effort       [Nm]
 #   damping     : viscous damping            [Nm*s/rad]
 #   friction    : static friction            [Nm]
+#
+# The ranges and speeds are those of an IRB-1200-class machine, converted from
+# the degrees the datasheet quotes:
+#   axis 1  +-170 deg, 288 deg/s        axis 4  +-270 deg, 400 deg/s
+#   axis 2  -100..135 deg, 240 deg/s    axis 5  +-130 deg, 405 deg/s
+#   axis 3  -200..70 deg, 297 deg/s     axis 6  +-400 deg, 600 deg/s
+#
 # The very same numbers are re-used by the MoveIt joint_limits.yaml and by the
-# safety layer, so a change here propagates through the whole stack.
+# safety layer, and tests fail the build if any of them drifts apart.
 # ---------------------------------------------------------------------------
 joints:
-  joint_1:                # base rotation
+  joint_1:                  # base rotation
     axis: [0, 0, 1]
-    lower: -3.1416
-    upper: 3.1416
-    velocity: 2.60
+    lower: -2.9671
+    upper: 2.9671
+    velocity: 5.0265
+    effort: 300.0
+    damping: 2.00
+    friction: 1.00
+  joint_2:                  # shoulder
+    axis: [0, 1, 0]
+    lower: -1.7453
+    upper: 2.3562
+    velocity: 4.1888
+    effort: 300.0
+    damping: 2.00
+    friction: 1.00
+  joint_3:                  # elbow
+    axis: [0, 1, 0]
+    lower: -3.4907
+    upper: 1.2217
+    velocity: 5.1836
     effort: 150.0
-    damping: 0.50
-    friction: 0.20
-  joint_2:                # shoulder
-    axis: [0, 1, 0]
-    lower: -2.0944
-    upper: 2.0944
-    velocity: 2.20
-    effort: 150.0
-    damping: 0.50
-    friction: 0.20
-  joint_3:                # elbow
-    axis: [0, 1, 0]
-    lower: -2.6180
-    upper: 2.6180
-    velocity: 2.60
-    effort: 100.0
-    damping: 0.35
-    friction: 0.15
-  joint_4:                # wrist rotation
+    damping: 1.20
+    friction: 0.60
+  joint_4:                  # wrist rotation
     axis: [0, 0, 1]
-    lower: -3.1416
-    upper: 3.1416
-    velocity: 3.20
+    lower: -4.7124
+    upper: 4.7124
+    velocity: 6.9813
     effort: 40.0
-    damping: 0.20
-    friction: 0.10
-  joint_5:                # wrist pitch
+    damping: 0.40
+    friction: 0.20
+  joint_5:                  # wrist bend
     axis: [0, 1, 0]
-    lower: -2.0944
-    upper: 2.0944
-    velocity: 3.20
+    lower: -2.2689
+    upper: 2.2689
+    velocity: 7.0686
     effort: 40.0
-    damping: 0.20
-    friction: 0.10
-  joint_6:                # wrist rotation (tool roll)
+    damping: 0.40
+    friction: 0.20
+  joint_6:                  # tool rotation
     axis: [0, 0, 1]
-    lower: -3.1416
-    upper: 3.1416
-    velocity: 3.20
+    lower: -6.9813
+    upper: 6.9813
+    velocity: 10.4720
     effort: 20.0
-    damping: 0.10
-    friction: 0.05
+    damping: 0.20
+    friction: 0.10
 
 # ---------------------------------------------------------------------------
-# Gazebo surface/dynamics properties per link.
+# Gazebo surface and visual properties.
 # ---------------------------------------------------------------------------
 gazebo:
   mu1: 0.6
   mu2: 0.6
   self_collide: false
   base_material: Gazebo/DarkGrey
-  link_material: Gazebo/Grey
-  joint_material: Gazebo/Orange
+  link_material: Gazebo/Orange
+  joint_material: Gazebo/DarkGrey
+  wrist_material: Gazebo/Grey
+  motor_material: Gazebo/Black

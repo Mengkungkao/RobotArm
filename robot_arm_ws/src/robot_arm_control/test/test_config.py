@@ -152,6 +152,38 @@ def test_calibration_limits_stay_inside_the_mechanical_limits(robot):
         assert record['min_position'] <= record['home_position'] <= record['max_position']
 
 
+def test_drives_can_deliver_the_rated_joint_effort(robot):
+    """The drive train and the joint limits must describe the same machine.
+
+    Joint torque = motor current * torque constant * gear ratio.  If the
+    configured effort limit needs more current than the drive is allowed to
+    draw, the arm will stall on a move the planner considers perfectly valid.
+    """
+    hardware = load('hardware.yaml', package='robot_arm_hardware')['robot_arm_hardware']
+    for joint in JOINTS:
+        drive = hardware['joints'][joint]
+        effort = robot['joints'][joint]['effort']
+        stall_torque = drive['torque_constant'] * drive['gear_ratio'] * drive['max_current']
+        assert stall_torque >= effort, (
+            f'{joint}: the drive delivers {stall_torque:.1f} Nm at its current limit '
+            f'but the joint is rated {effort:.1f} Nm')
+        # A drive with no headroom at all cannot accelerate the joint under load.
+        assert stall_torque <= effort * 3.0, (
+            f'{joint}: the drive is oversized for the configured effort limit')
+
+
+def test_gear_ratios_are_plausible_for_an_industrial_arm(robot):
+    hardware = load('hardware.yaml', package='robot_arm_hardware')['robot_arm_hardware']
+    for joint in JOINTS:
+        drive = hardware['joints'][joint]
+        assert 10.0 <= drive['gear_ratio'] <= 400.0, f'{joint}: implausible gear ratio'
+        # The wrist axes are faster and more lightly geared than the main axes.
+    assert (hardware['joints']['joint_6']['gear_ratio']
+            < hardware['joints']['joint_1']['gear_ratio'])
+    assert (robot['joints']['joint_6']['velocity']
+            > robot['joints']['joint_1']['velocity'])
+
+
 def test_control_timeouts_are_compatible_with_the_control_rate(controllers):
     hardware = load('hardware.yaml', package='robot_arm_hardware')['robot_arm_hardware']
     period = 1.0 / controllers['controller_manager']['ros__parameters']['update_rate']

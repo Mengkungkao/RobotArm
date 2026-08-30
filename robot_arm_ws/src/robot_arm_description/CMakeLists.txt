@@ -8,6 +8,13 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
+# Headless preview tool: renders the model to a PNG with no RViz and no
+# display, which is how a geometry change gets eyeballed in CI.
+install(
+  PROGRAMS scripts/urdf_preview.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   # Expands the Xacro model in every backend mode and validates the resulting

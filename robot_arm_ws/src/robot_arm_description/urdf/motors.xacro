@@ -1,0 +1,94 @@
+<?xml version="1.0"?>
+<!--
+  ==========================================================================
+   Drive units - one servo motor + gearbox per axis.
+  ==========================================================================
+
+   Each assembly is a real link with mass and inertia, rigidly attached to
+   the link that carries it, so the arm's dynamics account for the drives
+   instead of pretending they are weightless.  On a 52 kg arm the six drives
+   are 11.5 kg of it, most of it high up on the moving links - leaving that
+   out makes a simulated arm accelerate in ways the real one cannot.
+
+   Geometry: the assembly extrudes along its own +Z from the mounting face,
+   gearbox first, then the motor body.  Pose, size and mass all come from the
+   `motors:` section of robot.yaml.
+
+   Collision geometry is off by default (`motors.use_collision`): the drives
+   sit inside the arm's own swept envelope, so checking them costs planning
+   time without changing any result.  Turning it on means regenerating the
+   SRDF collision matrix.
+
+   The `motor_id` here is the same id the driver addresses on the bus in
+   robot_arm_hardware/config/hardware.yaml: one set of six motors, described
+   once for the model and once for the driver.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="drive_unit" params="name parent spec use_collision">
+
+    <link name="${name}">
+
+      <!-- Gearbox: the wide, short housing bolted to the link. -->
+      <visual>
+        <origin xyz="0 0 ${spec['gearbox_length'] / 2.0}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${spec['gearbox_radius']}" length="${spec['gearbox_length']}"/>
+        </geometry>
+        <material name="gearbox_grey"/>
+      </visual>
+
+      <!-- Motor body. -->
+      <visual>
+        <origin xyz="0 0 ${spec['gearbox_length'] + spec['length'] / 2.0}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${spec['radius']}" length="${spec['length']}"/>
+        </geometry>
+        <material name="motor_black"/>
+      </visual>
+
+      <xacro:if value="${use_collision}">
+        <collision>
+          <origin xyz="0 0 ${(spec['gearbox_length'] + spec['length']) / 2.0}" rpy="0 0 0"/>
+          <geometry>
+            <cylinder radius="${spec['gearbox_radius']}"
+                      length="${spec['gearbox_length'] + spec['length']}"/>
+          </geometry>
+        </collision>
+      </xacro:if>
+
+      <!-- One inertial for the whole assembly, about its combined centre. -->
+      <xacro:cylinder_inertial
+        mass="${spec['mass']}"
+        radius="${spec['gearbox_radius']}"
+        length="${spec['gearbox_length'] + spec['length']}">
+        <origin xyz="0 0 ${(spec['gearbox_length'] + spec['length']) / 2.0}" rpy="0 0 0"/>
+      </xacro:cylinder_inertial>
+    </link>
+
+    <joint name="${name}_mount" type="fixed">
+      <parent link="${parent}"/>
+      <child link="${name}"/>
+      <origin
+        xyz="${spec['xyz'][0]} ${spec['xyz'][1]} ${spec['xyz'][2]}"
+        rpy="${spec['rpy'][0]} ${spec['rpy'][1]} ${spec['rpy'][2]}"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- All six drives, mounted on the links named in robot.yaml. -->
+  <xacro:macro name="robot_arm_motors" params="prefix motors">
+    <xacro:drive_unit name="${prefix}motor_1" parent="${prefix}${motors['joint_1']['parent']}"
+                      spec="${motors['joint_1']}" use_collision="${motors['use_collision']}"/>
+    <xacro:drive_unit name="${prefix}motor_2" parent="${prefix}${motors['joint_2']['parent']}"
+                      spec="${motors['joint_2']}" use_collision="${motors['use_collision']}"/>
+    <xacro:drive_unit name="${prefix}motor_3" parent="${prefix}${motors['joint_3']['parent']}"
+                      spec="${motors['joint_3']}" use_collision="${motors['use_collision']}"/>
+    <xacro:drive_unit name="${prefix}motor_4" parent="${prefix}${motors['joint_4']['parent']}"
+                      spec="${motors['joint_4']}" use_collision="${motors['use_collision']}"/>
+    <xacro:drive_unit name="${prefix}motor_5" parent="${prefix}${motors['joint_5']['parent']}"
+                      spec="${motors['joint_5']}" use_collision="${motors['use_collision']}"/>
+    <xacro:drive_unit name="${prefix}motor_6" parent="${prefix}${motors['joint_6']['parent']}"
+                      spec="${motors['joint_6']}" use_collision="${motors['use_collision']}"/>
+  </xacro:macro>
+
+</robot>

@@ -36,4 +36,24 @@
     </inertial>
   </xacro:macro>
 
+  <!-- Build a link's inertial from its `inertial:` entry in robot.yaml.
+       A URDF link carries exactly one inertial, so a composite link declares
+       the equivalent solid its tensor is derived from and where its centre of
+       mass sits. -->
+  <xacro:macro name="link_inertial" params="spec">
+    <xacro:if value="${spec['shape'] == 'cylinder'}">
+      <xacro:cylinder_inertial
+        mass="${spec['mass']}" radius="${spec['radius']}" length="${spec['length']}">
+        <origin xyz="${spec['com'][0]} ${spec['com'][1]} ${spec['com'][2]}" rpy="0 0 0"/>
+      </xacro:cylinder_inertial>
+    </xacro:if>
+    <xacro:if value="${spec['shape'] == 'box'}">
+      <xacro:box_inertial
+        mass="${spec['mass']}"
+        x="${spec['size'][0]}" y="${spec['size'][1]}" z="${spec['size'][2]}">
+        <origin xyz="${spec['com'][0]} ${spec['com'][1]} ${spec['com'][2]}" rpy="0 0 0"/>
+      </xacro:box_inertial>
+    </xacro:if>
+  </xacro:macro>
+
 </robot>

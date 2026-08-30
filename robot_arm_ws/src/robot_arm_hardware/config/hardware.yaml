@@ -84,49 +84,49 @@ robot_arm_hardware:
   joints:
     joint_1:
       motor_id: 1
-      encoder_resolution: 4096
-      gear_ratio: 100.0
+      encoder_resolution: 131072
+      gear_ratio: 160.0
       encoder_direction: 1
-      torque_constant: 0.085
-      max_current: 8.0
-      max_temperature: 70.0
+      torque_constant: 0.14
+      max_current: 15.0
+      max_temperature: 75.0
     joint_2:
       motor_id: 2
-      encoder_resolution: 4096
-      gear_ratio: 120.0
+      encoder_resolution: 131072
+      gear_ratio: 160.0
       encoder_direction: 1
-      torque_constant: 0.085
-      max_current: 8.0
-      max_temperature: 70.0
+      torque_constant: 0.14
+      max_current: 15.0
+      max_temperature: 75.0
     joint_3:
       motor_id: 3
-      encoder_resolution: 2048
-      gear_ratio: 100.0
+      encoder_resolution: 131072
+      gear_ratio: 120.0
       encoder_direction: -1
-      torque_constant: 0.070
-      max_current: 6.0
-      max_temperature: 70.0
+      torque_constant: 0.11
+      max_current: 12.0
+      max_temperature: 75.0
     joint_4:
       motor_id: 4
-      encoder_resolution: 2048
-      gear_ratio: 50.0
+      encoder_resolution: 65536
+      gear_ratio: 80.0
       encoder_direction: 1
-      torque_constant: 0.045
-      max_current: 4.0
-      max_temperature: 65.0
+      torque_constant: 0.07
+      max_current: 8.0
+      max_temperature: 70.0
     joint_5:
       motor_id: 5
-      encoder_resolution: 1024
-      gear_ratio: 50.0
+      encoder_resolution: 65536
+      gear_ratio: 80.0
       encoder_direction: 1
-      torque_constant: 0.045
-      max_current: 4.0
-      max_temperature: 65.0
+      torque_constant: 0.07
+      max_current: 8.0
+      max_temperature: 70.0
     joint_6:
       motor_id: 6
-      encoder_resolution: 1024
-      gear_ratio: 30.0
+      encoder_resolution: 65536
+      gear_ratio: 55.0
       encoder_direction: -1
-      torque_constant: 0.030
-      max_current: 3.0
-      max_temperature: 65.0
+      torque_constant: 0.07
+      max_current: 6.0
+      max_temperature: 70.0

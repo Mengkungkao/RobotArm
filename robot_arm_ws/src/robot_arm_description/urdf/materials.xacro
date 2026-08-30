@@ -1,26 +1,45 @@
 <?xml version="1.0"?>
 <!--
-  RViz / URDF materials.  Gazebo materials are applied separately in
-  gazebo.xacro because Gazebo Classic ignores <material> tags coming from URDF.
+  RViz / URDF materials.
+
+  The palette is the industrial-arm convention: an orange arm on a graphite
+  base and wrist, with black drive units.  Gazebo materials are applied
+  separately in gazebo.xacro, because Gazebo Classic ignores <material> tags
+  that come from URDF.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <material name="arm_dark_grey">
-    <color rgba="0.25 0.25 0.27 1.0"/>
-  </material>
-
-  <material name="arm_grey">
-    <color rgba="0.72 0.72 0.74 1.0"/>
-  </material>
-
+  <!-- Arm castings. -->
   <material name="arm_orange">
-    <color rgba="0.95 0.55 0.10 1.0"/>
+    <color rgba="1.00 0.42 0.07 1.0"/>
   </material>
 
-  <material name="arm_black">
-    <color rgba="0.08 0.08 0.08 1.0"/>
+  <!-- Base, joint housings and yokes. -->
+  <material name="arm_graphite">
+    <color rgba="0.24 0.25 0.27 1.0"/>
   </material>
 
+  <!-- Wrist castings. -->
+  <material name="arm_light_grey">
+    <color rgba="0.72 0.73 0.75 1.0"/>
+  </material>
+
+  <!-- Machined tool flange. -->
+  <material name="arm_steel">
+    <color rgba="0.55 0.56 0.58 1.0"/>
+  </material>
+
+  <!-- Motor bodies. -->
+  <material name="motor_black">
+    <color rgba="0.10 0.10 0.11 1.0"/>
+  </material>
+
+  <!-- Gearbox housings. -->
+  <material name="gearbox_grey">
+    <color rgba="0.38 0.39 0.41 1.0"/>
+  </material>
+
+  <!-- Gripper mounting plate. -->
   <material name="arm_blue">
     <color rgba="0.15 0.35 0.75 1.0"/>
   </material>

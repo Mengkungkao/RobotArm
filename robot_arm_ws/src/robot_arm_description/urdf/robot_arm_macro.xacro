@@ -1,16 +1,22 @@
 <?xml version="1.0"?>
 <!--
   ==========================================================================
-   robot_arm - 6-DOF serial manipulator, links + joints only.
+   robot_arm - 6-DOF industrial manipulator, links and joints.
   ==========================================================================
+
+   Proportions, kinematic envelope and drive train follow the classic
+   ABB IRB-1200 class: ~0.9 m reach, ~5 kg payload, ~52 kg, a rotating
+   column, an offset elbow and a compact three-roll wrist.  It is built from
+   primitives - it carries no vendor mesh, badge or branding, and it is not
+   affiliated with ABB.
 
    Every dimension, mass, limit and dynamic property is read from a YAML file
    (default: robot_arm_description/config/robot.yaml).  Nothing mechanical is
-   hard-coded here, so re-targeting the model to a different machine is a
+   hard-coded here, so retargeting the model to a different machine is a
    matter of editing one YAML file.
 
-   The kinematic chain is *derived* from the link lengths, which guarantees
-   that the joint origins can never fall out of sync with the geometry:
+   The joint origins are derived from the `kinematics:` block, which
+   guarantees that the chain can never fall out of sync with the geometry:
 
      base_link -[j1:Z]- link_1 -[j2:Y]- link_2 -[j3:Y]- link_3
                -[j4:Z]- link_4 -[j5:Y]- link_5 -[j6:Z]- link_6 -> tool0
@@ -21,33 +27,49 @@
 
   <xacro:include filename="$(find robot_arm_description)/urdf/materials.xacro"/>
   <xacro:include filename="$(find robot_arm_description)/urdf/inertials.xacro"/>
+  <xacro:include filename="$(find robot_arm_description)/urdf/motors.xacro"/>
 
   <!-- =====================================================================
-       Generic cylindrical link: visual + primitive collision + inertial.
-       The cylinder is extruded along +Z starting at the link origin, so the
-       child joint sits exactly at z = length.
+       Primitive building blocks.  Each emits a visual and, unless asked not
+       to, a matching collision - so the two can never describe different
+       shapes.  A cylinder is extruded along its own Z; `rpy` turns it into a
+       cross-shaft (rpy="1.5708 0 0" lays it along Y).
        ===================================================================== -->
-  <xacro:macro name="arm_link" params="name radius length mass material">
-    <link name="${name}">
-      <visual>
-        <origin xyz="0 0 ${length / 2.0}" rpy="0 0 0"/>
-        <geometry>
-          <cylinder radius="${radius}" length="${length}"/>
-        </geometry>
-        <material name="${material}"/>
-      </visual>
+  <xacro:macro name="cyl_part"
+               params="radius length xyz rpy:='0 0 0' material collision:=true">
+    <visual>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <geometry>
+        <cylinder radius="${radius}" length="${length}"/>
+      </geometry>
+      <material name="${material}"/>
+    </visual>
+    <xacro:if value="${collision}">
       <collision>
-        <origin xyz="0 0 ${length / 2.0}" rpy="0 0 0"/>
+        <origin xyz="${xyz}" rpy="${rpy}"/>
         <geometry>
-          <!-- Primitive collision geometry on purpose: fast in Gazebo and
-               numerically well behaved for MoveIt self-collision checks. -->
           <cylinder radius="${radius}" length="${length}"/>
         </geometry>
       </collision>
-      <xacro:cylinder_inertial mass="${mass}" radius="${radius}" length="${length}">
-        <origin xyz="0 0 ${length / 2.0}" rpy="0 0 0"/>
-      </xacro:cylinder_inertial>
-    </link>
+    </xacro:if>
+  </xacro:macro>
+
+  <xacro:macro name="box_part" params="size xyz rpy:='0 0 0' material collision:=true">
+    <visual>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <geometry>
+        <box size="${size}"/>
+      </geometry>
+      <material name="${material}"/>
+    </visual>
+    <xacro:if value="${collision}">
+      <collision>
+        <origin xyz="${xyz}" rpy="${rpy}"/>
+        <geometry>
+          <box size="${size}"/>
+        </geometry>
+      </collision>
+    </xacro:if>
   </xacro:macro>
 
   <!-- =====================================================================
@@ -73,24 +95,34 @@
   <!-- =====================================================================
        The arm itself.
        ===================================================================== -->
-  <xacro:macro name="robot_arm" params="prefix robot_config_file use_gripper_mount:=true">
+  <xacro:macro name="robot_arm" params="prefix robot_config_file use_gripper_mount:=true
+                                        use_motors:=true">
 
     <xacro:property name="cfg" value="${xacro.load_yaml(robot_config_file)}"/>
+    <xacro:property name="kin" value="${cfg['kinematics']}"/>
     <xacro:property name="geom" value="${cfg['geometry']}"/>
-    <xacro:property name="mass" value="${cfg['mass']}"/>
+    <xacro:property name="inr" value="${cfg['inertial']}"/>
     <xacro:property name="jnt" value="${cfg['joints']}"/>
-    <xacro:property name="off" value="${cfg['offsets']}"/>
     <xacro:property name="grip" value="${cfg['gripper_mount']}"/>
 
+    <!-- Cylinders laid across the arm (shoulder and elbow shafts, wrist yoke). -->
+    <xacro:property name="cross" value="1.5708 0 0"/>
+
     <!-- ================================================================ -->
-    <!-- Base                                                             -->
+    <!-- base_link: the fixed foot - mounting plate and lower housing.    -->
     <!-- ================================================================ -->
-    <xacro:arm_link
-      name="${prefix}base_link"
-      radius="${geom['base']['radius']}"
-      length="${geom['base']['length']}"
-      mass="${mass['base']}"
-      material="arm_dark_grey"/>
+    <link name="${prefix}base_link">
+      <xacro:box_part
+        size="${geom['base']['plate_radius'] * 2} ${geom['base']['plate_radius'] * 2} ${geom['base']['plate_height']}"
+        xyz="0 0 ${geom['base']['plate_height'] / 2.0}"
+        material="arm_graphite"/>
+      <xacro:cyl_part
+        radius="${geom['base']['housing_radius']}"
+        length="${geom['base']['housing_height']}"
+        xyz="0 0 ${geom['base']['plate_height'] + geom['base']['housing_height'] / 2.0}"
+        material="arm_graphite"/>
+      <xacro:link_inertial spec="${inr['base_link']}"/>
+    </link>
 
     <!-- ================================================================ -->
     <!-- Joint 1 - base rotation                                          -->
@@ -99,14 +131,23 @@
       name="${prefix}joint_1"
       parent="${prefix}base_link"
       child="${prefix}link_1"
-      xyz="0 0 ${geom['base']['length']}"
+      xyz="0 0 ${kin['base_height']}"
       spec="${jnt['joint_1']}"/>
-    <xacro:arm_link
-      name="${prefix}link_1"
-      radius="${geom['link_1']['radius']}"
-      length="${geom['link_1']['length']}"
-      mass="${mass['link_1']}"
-      material="arm_orange"/>
+
+    <!-- link_1: the rotating column, carrying the shoulder shaft. -->
+    <link name="${prefix}link_1">
+      <xacro:box_part
+        size="${geom['link_1']['tower_x']} ${geom['link_1']['tower_y']} ${geom['link_1']['tower_z']}"
+        xyz="0 0 ${geom['link_1']['tower_z'] / 2.0}"
+        material="arm_orange"/>
+      <xacro:cyl_part
+        radius="${geom['link_1']['shoulder_radius']}"
+        length="${geom['link_1']['shoulder_width']}"
+        xyz="0 0 ${kin['shoulder_height']}"
+        rpy="${cross}"
+        material="arm_graphite"/>
+      <xacro:link_inertial spec="${inr['link_1']}"/>
+    </link>
 
     <!-- ================================================================ -->
     <!-- Joint 2 - shoulder                                               -->
@@ -115,14 +156,27 @@
       name="${prefix}joint_2"
       parent="${prefix}link_1"
       child="${prefix}link_2"
-      xyz="0 ${off['shoulder_y']} ${geom['link_1']['length']}"
+      xyz="0 ${kin['shoulder_offset_y']} ${kin['shoulder_height']}"
       spec="${jnt['joint_2']}"/>
-    <xacro:arm_link
-      name="${prefix}link_2"
-      radius="${geom['link_2']['radius']}"
-      length="${geom['link_2']['length']}"
-      mass="${mass['link_2']}"
-      material="arm_grey"/>
+
+    <!-- link_2: the upper arm - a shaft boss at each end and a beam between. -->
+    <link name="${prefix}link_2">
+      <xacro:cyl_part
+        radius="${geom['link_2']['shoulder_radius']}"
+        length="${geom['link_2']['shoulder_width']}"
+        xyz="0 0 0" rpy="${cross}"
+        material="arm_orange"/>
+      <xacro:box_part
+        size="${geom['link_2']['beam_x']} ${geom['link_2']['beam_y']} ${kin['upper_arm'] - 0.06}"
+        xyz="0 0 ${kin['upper_arm'] / 2.0}"
+        material="arm_orange"/>
+      <xacro:cyl_part
+        radius="${geom['link_2']['elbow_radius']}"
+        length="${geom['link_2']['elbow_width']}"
+        xyz="0 0 ${kin['upper_arm']}" rpy="${cross}"
+        material="arm_orange"/>
+      <xacro:link_inertial spec="${inr['link_2']}"/>
+    </link>
 
     <!-- ================================================================ -->
     <!-- Joint 3 - elbow                                                  -->
@@ -131,14 +185,25 @@
       name="${prefix}joint_3"
       parent="${prefix}link_2"
       child="${prefix}link_3"
-      xyz="0 ${off['elbow_y']} ${geom['link_2']['length']}"
+      xyz="0 0 ${kin['upper_arm']}"
       spec="${jnt['joint_3']}"/>
-    <xacro:arm_link
-      name="${prefix}link_3"
-      radius="${geom['link_3']['radius']}"
-      length="${geom['link_3']['length']}"
-      mass="${mass['link_3']}"
-      material="arm_orange"/>
+
+    <!-- link_3: the elbow housing and the tubular forearm.  The forearm is
+         offset forward by `elbow_offset_x`, which is what gives an industrial
+         arm its characteristic cranked elbow. -->
+    <link name="${prefix}link_3">
+      <xacro:cyl_part
+        radius="${geom['link_3']['elbow_radius']}"
+        length="${geom['link_3']['elbow_width']}"
+        xyz="0 0 0" rpy="${cross}"
+        material="arm_graphite"/>
+      <xacro:cyl_part
+        radius="${geom['link_3']['forearm_radius']}"
+        length="${kin['forearm']}"
+        xyz="${kin['elbow_offset_x']} 0 ${kin['forearm'] / 2.0}"
+        material="arm_orange"/>
+      <xacro:link_inertial spec="${inr['link_3']}"/>
+    </link>
 
     <!-- ================================================================ -->
     <!-- Joint 4 - wrist rotation                                         -->
@@ -147,46 +212,60 @@
       name="${prefix}joint_4"
       parent="${prefix}link_3"
       child="${prefix}link_4"
-      xyz="0 0 ${geom['link_3']['length']}"
+      xyz="${kin['elbow_offset_x']} 0 ${kin['forearm']}"
       spec="${jnt['joint_4']}"/>
-    <xacro:arm_link
-      name="${prefix}link_4"
-      radius="${geom['link_4']['radius']}"
-      length="${geom['link_4']['length']}"
-      mass="${mass['link_4']}"
-      material="arm_grey"/>
+
+    <link name="${prefix}link_4">
+      <xacro:cyl_part
+        radius="${geom['link_4']['radius']}"
+        length="${geom['link_4']['length']}"
+        xyz="0 0 ${geom['link_4']['length'] / 2.0}"
+        material="arm_light_grey"/>
+      <xacro:link_inertial spec="${inr['link_4']}"/>
+    </link>
 
     <!-- ================================================================ -->
-    <!-- Joint 5 - wrist pitch (this origin is the spherical wrist centre) -->
+    <!-- Joint 5 - wrist bend (this origin is the spherical wrist centre)  -->
     <!-- ================================================================ -->
     <xacro:arm_joint
       name="${prefix}joint_5"
       parent="${prefix}link_4"
       child="${prefix}link_5"
-      xyz="0 0 ${geom['link_4']['length']}"
+      xyz="0 0 ${kin['wrist_housing']}"
       spec="${jnt['joint_5']}"/>
-    <xacro:arm_link
-      name="${prefix}link_5"
-      radius="${geom['link_5']['radius']}"
-      length="${geom['link_5']['length']}"
-      mass="${mass['link_5']}"
-      material="arm_orange"/>
+
+    <link name="${prefix}link_5">
+      <xacro:cyl_part
+        radius="${geom['link_5']['radius']}"
+        length="${geom['link_5']['width']}"
+        xyz="0 0 0" rpy="${cross}"
+        material="arm_light_grey"/>
+      <xacro:cyl_part
+        radius="${geom['link_5']['radius'] * 0.85}"
+        length="${geom['link_5']['length']}"
+        xyz="0 0 ${geom['link_5']['length'] / 2.0}"
+        material="arm_light_grey"/>
+      <xacro:link_inertial spec="${inr['link_5']}"/>
+    </link>
 
     <!-- ================================================================ -->
-    <!-- Joint 6 - tool roll                                              -->
+    <!-- Joint 6 - tool rotation                                          -->
     <!-- ================================================================ -->
     <xacro:arm_joint
       name="${prefix}joint_6"
       parent="${prefix}link_5"
       child="${prefix}link_6"
-      xyz="0 0 ${geom['link_5']['length']}"
+      xyz="0 0 ${kin['wrist_offset']}"
       spec="${jnt['joint_6']}"/>
-    <xacro:arm_link
-      name="${prefix}link_6"
-      radius="${geom['link_6']['radius']}"
-      length="${geom['link_6']['length']}"
-      mass="${mass['link_6']}"
-      material="arm_black"/>
+
+    <link name="${prefix}link_6">
+      <xacro:cyl_part
+        radius="${geom['link_6']['radius']}"
+        length="${geom['link_6']['length']}"
+        xyz="0 0 ${geom['link_6']['length'] / 2.0}"
+        material="arm_steel"/>
+      <xacro:link_inertial spec="${inr['link_6']}"/>
+    </link>
 
     <!-- ================================================================ -->
     <!-- tool0 - the tool flange face; the planning end effector.          -->
@@ -196,29 +275,26 @@
     <joint name="${prefix}joint_tool0" type="fixed">
       <parent link="${prefix}link_6"/>
       <child link="${prefix}tool0"/>
-      <origin xyz="0 0 ${geom['link_6']['length'] + off['tool_z']}" rpy="0 0 0"/>
+      <origin xyz="0 0 ${kin['flange']}" rpy="0 0 0"/>
     </joint>
 
     <!-- ================================================================ -->
+    <!-- Drive units                                                      -->
+    <!-- ================================================================ -->
+    <xacro:if value="${use_motors}">
+      <xacro:robot_arm_motors prefix="${prefix}" motors="${cfg['motors']}"/>
+    </xacro:if>
+
+    <!-- ================================================================ -->
     <!-- Optional gripper mounting interface.                             -->
-    <!-- A real gripper description can be attached to ${prefix}tool0     -->
-    <!-- (or to ${prefix}gripper_mount_link) from another Xacro file.     -->
     <!-- ================================================================ -->
     <xacro:if value="${use_gripper_mount}">
       <link name="${prefix}gripper_mount_link">
-        <visual>
-          <origin xyz="0 0 ${grip['plate_thickness'] / 2.0}" rpy="0 0 0"/>
-          <geometry>
-            <cylinder radius="${grip['plate_radius']}" length="${grip['plate_thickness']}"/>
-          </geometry>
-          <material name="arm_blue"/>
-        </visual>
-        <collision>
-          <origin xyz="0 0 ${grip['plate_thickness'] / 2.0}" rpy="0 0 0"/>
-          <geometry>
-            <cylinder radius="${grip['plate_radius']}" length="${grip['plate_thickness']}"/>
-          </geometry>
-        </collision>
+        <xacro:cyl_part
+          radius="${grip['plate_radius']}"
+          length="${grip['plate_thickness']}"
+          xyz="0 0 ${grip['plate_thickness'] / 2.0}"
+          material="arm_blue"/>
         <xacro:cylinder_inertial
           mass="${grip['plate_mass']}"
           radius="${grip['plate_radius']}"

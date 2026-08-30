@@ -47,6 +47,10 @@
   <!-- Optional gripper mounting plate + tool_tip frame. -->
   <xacro:arg name="use_gripper_mount" default="true"/>
 
+  <!-- Model the six servo/gearbox drive units as links with mass.  Turning
+       them off gives a lighter, purely kinematic arm. -->
+  <xacro:arg name="use_motors" default="true"/>
+
   <!-- Emit <transmission> entries (see transmissions.xacro). -->
   <xacro:arg name="use_transmissions" default="false"/>
 
@@ -91,7 +95,8 @@
   <xacro:robot_arm
     prefix="${prefix}"
     robot_config_file="$(arg robot_config_file)"
-    use_gripper_mount="$(arg use_gripper_mount)"/>
+    use_gripper_mount="$(arg use_gripper_mount)"
+    use_motors="$(arg use_motors)"/>
 
   <!-- ===================== ros2_control =============================== -->
 
@@ -113,7 +118,8 @@
       prefix="${prefix}"
       sim_engine="${sim_engine}"
       robot_config_file="$(arg robot_config_file)"
-      controllers_file="$(arg controllers_file)"/>
+      controllers_file="$(arg controllers_file)"
+      use_motors="$(arg use_motors)"/>
   </xacro:if>
 
 </robot>

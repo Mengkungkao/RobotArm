@@ -35,25 +35,42 @@
   </xacro:macro>
 
   <xacro:macro name="robot_arm_gazebo"
-               params="prefix sim_engine robot_config_file controllers_file">
+               params="prefix sim_engine robot_config_file controllers_file use_motors:=true">
 
     <xacro:property name="cfg" value="${xacro.load_yaml(robot_config_file)}"/>
     <xacro:property name="gz" value="${cfg['gazebo']}"/>
 
     <xacro:arm_gazebo_link name="${prefix}base_link" material="${gz['base_material']}"
       mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="${gz['self_collide']}"/>
-    <xacro:arm_gazebo_link name="${prefix}link_1" material="${gz['joint_material']}"
+    <xacro:arm_gazebo_link name="${prefix}link_1" material="${gz['link_material']}"
       mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="${gz['self_collide']}"/>
     <xacro:arm_gazebo_link name="${prefix}link_2" material="${gz['link_material']}"
       mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="${gz['self_collide']}"/>
-    <xacro:arm_gazebo_link name="${prefix}link_3" material="${gz['joint_material']}"
+    <xacro:arm_gazebo_link name="${prefix}link_3" material="${gz['link_material']}"
       mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="${gz['self_collide']}"/>
-    <xacro:arm_gazebo_link name="${prefix}link_4" material="${gz['link_material']}"
+    <xacro:arm_gazebo_link name="${prefix}link_4" material="${gz['wrist_material']}"
       mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="${gz['self_collide']}"/>
-    <xacro:arm_gazebo_link name="${prefix}link_5" material="${gz['joint_material']}"
+    <xacro:arm_gazebo_link name="${prefix}link_5" material="${gz['wrist_material']}"
       mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="${gz['self_collide']}"/>
-    <xacro:arm_gazebo_link name="${prefix}link_6" material="${gz['base_material']}"
+    <xacro:arm_gazebo_link name="${prefix}link_6" material="${gz['joint_material']}"
       mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="${gz['self_collide']}"/>
+
+    <!-- Drive units.  They carry mass in the physics engine either way; this
+         only decides how they are shaded. -->
+    <xacro:if value="${use_motors}">
+      <xacro:arm_gazebo_link name="${prefix}motor_1" material="${gz['motor_material']}"
+        mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="false"/>
+      <xacro:arm_gazebo_link name="${prefix}motor_2" material="${gz['motor_material']}"
+        mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="false"/>
+      <xacro:arm_gazebo_link name="${prefix}motor_3" material="${gz['motor_material']}"
+        mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="false"/>
+      <xacro:arm_gazebo_link name="${prefix}motor_4" material="${gz['motor_material']}"
+        mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="false"/>
+      <xacro:arm_gazebo_link name="${prefix}motor_5" material="${gz['motor_material']}"
+        mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="false"/>
+      <xacro:arm_gazebo_link name="${prefix}motor_6" material="${gz['motor_material']}"
+        mu1="${gz['mu1']}" mu2="${gz['mu2']}" self_collide="false"/>
+    </xacro:if>
 
     <xacro:arm_gazebo_joint name="${prefix}joint_1"/>
     <xacro:arm_gazebo_joint name="${prefix}joint_2"/>
