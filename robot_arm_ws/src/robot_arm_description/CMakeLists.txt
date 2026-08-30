@@ -11,7 +11,9 @@ install(
 # Headless preview tool: renders the model to a PNG with no RViz and no
 # display, which is how a geometry change gets eyeballed in CI.
 install(
-  PROGRAMS scripts/urdf_preview.py
+  PROGRAMS
+    scripts/urdf_preview.py
+    scripts/compact_xacro.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

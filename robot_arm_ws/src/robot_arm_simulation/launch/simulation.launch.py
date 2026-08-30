@@ -22,7 +22,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
-from launch_ros.substitutions import FindPackageShare
+from launch_ros.substitutions import FindPackagePrefix, FindPackageShare
 
 
 def generate_launch_description():
@@ -75,9 +75,20 @@ def generate_launch_description():
 
     # The robot is anchored to `world` here: without that fixed joint the arm
     # would be a free-floating body in the physics engine.
+    #
+    # compact_xacro instead of plain xacro: gazebo_ros2_control re-passes this
+    # description on a command line as `-p robot_description:=<xml>`, and rcl
+    # parses that as a YAML scalar.  A pretty-printed URDF is not one - it
+    # spans hundreds of lines and its comments carry ": " and "#".  The parse
+    # fails, the plugin returns before creating the controller manager, and
+    # every spawner then times out against a manager that never existed.
+    # compact_xacro emits the same model as one comment-free line.
     robot_description = ParameterValue(
         Command([
-            'xacro ',
+            PathJoinSubstitution([
+                FindPackagePrefix('robot_arm_description'),
+                'lib', 'robot_arm_description', 'compact_xacro.py']),
+            ' ',
             PathJoinSubstitution(
                 [FindPackageShare('robot_arm_description'), 'urdf', 'robot_arm.urdf.xacro']),
             ' hardware_type:=gazebo',

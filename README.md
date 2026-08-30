@@ -947,6 +947,20 @@ Calibration. Check `direction` and `zero_offset` per joint
 (`ros2 run robot_arm_tools calibrate_joints -- --show`); a mirrored joint is
 `direction` inverted, a constant offset is `zero_offset`.
 
+**Gazebo starts, the robot spawns, but no controller ever goes active.**
+Look for `parser error` from `gazebo_ros2_control` in the Gazebo output. The
+plugin re-passes the whole robot description on a command line as
+`-p robot_description:=<xml>`, and rcl parses that as a YAML scalar — which a
+pretty-printed URDF is not. `simulation.launch.py` therefore feeds Gazebo the
+model through `compact_xacro.py`, which emits it as one comment-free line. If
+you build your own description for Gazebo, do the same:
+
+```bash
+ros2 run robot_arm_description compact_xacro.py \
+    $(ros2 pkg prefix --share robot_arm_description)/urdf/robot_arm.urdf.xacro \
+    hardware_type:=gazebo use_world_frame:=true
+```
+
 **Motion is jerky in Gazebo.**
 Lower `velocity_scaling`, raise the solver iterations in
 `worlds/robot_arm.world`, and make sure the physics step is well below the

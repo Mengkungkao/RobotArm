@@ -10,6 +10,7 @@ the correct ros2_control plugin per mode.
 """
 
 import os
+import sys
 import xml.etree.ElementTree as ET
 
 import pytest
@@ -396,6 +397,65 @@ def test_simulation_and_real_expose_identical_joint_interfaces():
         }
 
     assert signature('gazebo') == signature('real') == signature('mock')
+
+
+# ---------------------------------------------------------------------------
+# The description Gazebo can actually consume
+# ---------------------------------------------------------------------------
+
+def compact_urdf(**mappings):
+    """Run scripts/compact_xacro.py the way the simulation launch file does."""
+    import subprocess
+    # Anchored on this test file (the source tree), because the script is
+    # installed to lib/, not to the share/ directory `_xacro_path` resolves.
+    package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    script = os.path.join(package_root, 'scripts', 'compact_xacro.py')
+    if not os.path.exists(script):
+        from shutil import which
+        script = which('compact_xacro.py')
+    if not script or not os.path.exists(script):
+        pytest.skip('compact_xacro.py is not available')
+    args = [sys.executable, script, _xacro_path()] + [
+        f'{k}:={str(v).lower() if isinstance(v, bool) else v}'
+        for k, v in mappings.items()]
+    done = subprocess.run(args, capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
+    return done.stdout
+
+
+def test_compact_description_is_a_valid_yaml_scalar():
+    """gazebo_ros2_control re-passes the description as `-p robot_description:=`
+    and rcl parses it as a YAML scalar.  Anything below breaks that parse, and
+    the failure surfaces as controller spawners timing out - far from the
+    cause."""
+    urdf = compact_urdf(hardware_type='gazebo', use_world_frame=True)
+    assert '\n' not in urdf, 'a multi-line value cannot be a command-line parameter'
+    assert '<!--' not in urdf, 'comments carry the characters that break the parse'
+    assert ': ' not in urdf, '": " ends an unquoted YAML scalar'
+    assert '#' not in urdf, '"#" starts a YAML comment'
+
+
+def test_compact_description_is_the_same_robot():
+    """Compacting may remove only comments and indentation - never data."""
+    plain = expand(hardware_type='gazebo', use_world_frame=True)
+    compact = ET.fromstring(compact_urdf(hardware_type='gazebo', use_world_frame=True))
+
+    def signature(root):
+        return (
+            sorted(link.get('name') for link in root.findall('link')),
+            sorted((j.get('name'), j.get('type'),
+                    (j.find('origin').get('xyz') if j.find('origin') is not None else ''),
+                    (j.find('parent').get('link')), (j.find('child').get('link')))
+                   for j in root.findall('joint')),
+        )
+
+    assert signature(plain) == signature(compact)
+
+
+def test_compact_description_still_carries_the_gazebo_plugin():
+    urdf = compact_urdf(hardware_type='gazebo', use_world_frame=True)
+    assert 'gazebo_ros2_control' in urdf
+    assert 'controllers.yaml' in urdf
 
 
 # ---------------------------------------------------------------------------
