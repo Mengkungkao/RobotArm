@@ -114,6 +114,99 @@ def test_distant_links_are_still_collision_checked(srdf):
         assert frozenset(pair) not in disabled, f'{pair} must stay collision checked'
 
 
+# A pair may be excused from collision checking only when the links cannot move
+# into each other.  Everything here is either a parent and its child, or rigidly
+# connected through fixed joints only - with one documented exception.
+#
+# Re-derive this set with scripts/collision_audit.py after a geometry change.
+# When the arm took on its IRB-1200-class proportions, four pairs the earlier
+# smaller model could never bring together - link_1/link_3, link_3/link_5,
+# link_4/link_6 and base_link/link_2 - had to be put back under the checker.
+REVIEWED_DISABLED_PAIRS = {
+    frozenset(('base_link', 'link_1')),
+    frozenset(('link_1', 'link_2')),
+    frozenset(('link_2', 'link_3')),
+    frozenset(('link_3', 'link_4')),
+    frozenset(('link_4', 'link_5')),
+    frozenset(('link_5', 'link_6')),
+    frozenset(('link_6', 'gripper_mount_link')),
+    frozenset(('link_5', 'gripper_mount_link')),
+}
+
+# joint_6 only spins the mounting plate about the axis it shares with the
+# wrist, so however far it turns the two never move into each other.
+COAXIAL_EXEMPTIONS = {frozenset(('link_5', 'gripper_mount_link'))}
+
+
+def test_collision_matrix_is_the_reviewed_set(srdf):
+    """Disabling a pair means it is never checked again, so changing that set
+    has to be a deliberate act - made here as well as in the SRDF."""
+    disabled = {
+        frozenset((entry.get('link1'), entry.get('link2')))
+        for entry in srdf.findall('disable_collisions')
+    }
+    added = disabled - REVIEWED_DISABLED_PAIRS
+    removed = REVIEWED_DISABLED_PAIRS - disabled
+    assert not added, (
+        f'disabled without review: {sorted(tuple(sorted(p)) for p in added)} - run '
+        f'scripts/collision_audit.py, then update REVIEWED_DISABLED_PAIRS')
+    assert not removed, (
+        f'no longer disabled: {sorted(tuple(sorted(p)) for p in removed)}')
+
+
+def test_disabled_pairs_cannot_move_into_each_other(srdf):
+    """Structural proof, no sampling: a disabled pair must be a parent and its
+    child, or joined to it through fixed joints only."""
+    xacro = pytest.importorskip('xacro')
+    import xml.etree.ElementTree as element_tree
+
+    urdf_path = os.path.join(SRC, 'robot_arm_description', 'urdf', 'robot_arm.urdf.xacro')
+    if not os.path.exists(urdf_path):
+        pytest.skip('robot_arm_description is not available')
+    try:
+        document = xacro.process_file(urdf_path, mappings={'hardware_type': 'mock'})
+    except Exception as error:      # needs an installed workspace to resolve $(find ...)
+        pytest.skip(f'cannot expand the description here: {error}')
+    urdf = element_tree.fromstring(document.toxml())
+
+    parent_of = {}
+    for joint in urdf.findall('joint'):
+        parent_of[joint.find('child').get('link')] = (
+            joint.find('parent').get('link'), joint.get('type'))
+
+    def joints_up_to_root(link):
+        """Every ancestor of `link`, with the joint types on the way there."""
+        seen = {link: []}
+        types = []
+        while link in parent_of:
+            parent, kind = parent_of[link]
+            types = types + [kind]
+            seen[parent] = types
+            link = parent
+        return seen
+
+    def rigidly_connected(first, second):
+        first_ancestors = joints_up_to_root(first)
+        second_ancestors = joints_up_to_root(second)
+        common = set(first_ancestors) & set(second_ancestors)
+        if not common:
+            return False
+        # The nearest shared ancestor is the one reached by the fewest joints.
+        nearest = min(common, key=lambda a: len(first_ancestors[a]) + len(second_ancestors[a]))
+        both = first_ancestors[nearest] + second_ancestors[nearest]
+        return all(kind == 'fixed' for kind in both)
+
+    for entry in srdf.findall('disable_collisions'):
+        first, second = entry.get('link1'), entry.get('link2')
+        if frozenset((first, second)) in COAXIAL_EXEMPTIONS:
+            continue
+        adjacent = (parent_of.get(first, (None,))[0] == second
+                    or parent_of.get(second, (None,))[0] == first)
+        assert adjacent or rigidly_connected(first, second), (
+            f'{first}/{second} is never checked for collision, but the joints '
+            f'between them can move one into the other')
+
+
 # ---------------------------------------------------------------------------
 # kinematics / limits / controllers
 # ---------------------------------------------------------------------------

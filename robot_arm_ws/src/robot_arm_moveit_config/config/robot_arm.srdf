@@ -69,16 +69,26 @@
        from folding the wrist into the forearm.
        ================================================================== -->
   <disable_collisions link1="base_link" link2="link_1" reason="Adjacent"/>
-  <disable_collisions link1="base_link" link2="link_2" reason="Never"/>
   <disable_collisions link1="link_1" link2="link_2" reason="Adjacent"/>
-  <disable_collisions link1="link_1" link2="link_3" reason="Never"/>
   <disable_collisions link1="link_2" link2="link_3" reason="Adjacent"/>
   <disable_collisions link1="link_3" link2="link_4" reason="Adjacent"/>
-  <disable_collisions link1="link_3" link2="link_5" reason="Never"/>
   <disable_collisions link1="link_4" link2="link_5" reason="Adjacent"/>
-  <disable_collisions link1="link_4" link2="link_6" reason="Never"/>
   <disable_collisions link1="link_5" link2="link_6" reason="Adjacent"/>
-  <disable_collisions link1="link_5" link2="gripper_mount_link" reason="Never"/>
+
+  <!-- The mounting plate is bolted to the flange and shares its axis, so
+       joint_6 cannot move it relative to either: permanently in contact. -->
   <disable_collisions link1="link_6" link2="gripper_mount_link" reason="Adjacent"/>
+  <disable_collisions link1="link_5" link2="gripper_mount_link" reason="Never"/>
+
+  <!-- Pairs that used to be disabled and are NOT, because the arm reached its
+       IRB-1200-class proportions.  scripts/collision_audit.py samples the
+       configuration space and finds them interpenetrating:
+
+         link_1 / link_3    -182 mm   forearm driven into the column
+         link_4 / link_6     -34 mm   flange folded into the wrist housing
+         link_3 / link_5     -47 mm   wrist yoke folded onto the forearm
+         base_link / link_2   +2 mm   grazes the base; too close to ignore
+
+       Disabling them would let the planner drive the arm through itself. -->
 
 </robot>
