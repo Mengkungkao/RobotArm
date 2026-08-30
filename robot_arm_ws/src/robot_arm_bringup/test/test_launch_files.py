@@ -120,6 +120,48 @@ def test_rviz_launch_can_run_with_and_without_moveit():
     assert 'rviz_config' in arguments
 
 
+# ---------------------------------------------------------------------------
+# Invariants that only bite at run time
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize('name', LAUNCH_FILES)
+def test_condition_arguments_default_to_a_boolean(name):
+    """An argument used as a launch condition must default to true or false.
+
+    IfCondition rejects anything else - including the empty string - and the
+    failure aborts the whole launch with `invalid condition expression`, far
+    from the declaration that caused it.  This is the shape of bug that only
+    shows up on a real run, so it is pinned here.
+    """
+    import re
+    text = source(name)
+    conditions = set(re.findall(
+        r"(?:IfCondition|UnlessCondition)\(\s*LaunchConfiguration\(\s*'([a-z_]+)'", text))
+    conditions |= set(re.findall(r"condition=(?:IfCondition|UnlessCondition)\(([a-z_]+)\)", text))
+    declared = dict(re.findall(
+        r"DeclareLaunchArgument\(\s*\n?\s*'([a-z_]+)',\s*default_value='([^']*)'", text))
+
+    for argument in conditions:
+        if argument not in declared:
+            continue        # declared in the file that includes this one
+        assert declared[argument] in ('true', 'false'), (
+            f'{name}: {argument} is used as a condition but defaults to '
+            f'"{declared[argument]}"')
+
+
+@pytest.mark.parametrize('name', ['sim.launch.py', 'real.launch.py'])
+def test_forwarding_wrappers_drop_arguments_the_user_did_not_set(name):
+    """The wrappers declare every forwarded argument so `--show-args` lists
+    them, which also puts an empty value into the launch context.  Included
+    launch files inherit that context, so their own defaults never apply and a
+    condition argument arrives as ''.  The unset names must be removed again
+    before including."""
+    text = source(name)
+    assert 'launch_configurations.pop(' in text, (
+        f'{name} must drop unset forwarded arguments, or bringup.launch.py '
+        f'inherits empty strings instead of applying its defaults')
+
+
 def test_moveit_launch_takes_the_backend_and_the_clock():
     arguments = declared_arguments(load('moveit.launch.py').generate_launch_description())
     assert 'hardware_type' in arguments
