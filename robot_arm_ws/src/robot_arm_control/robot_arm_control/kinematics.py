@@ -122,12 +122,16 @@ class Joint:
 
 
 class Link:
-    """One URDF link and its inertial properties."""
+    """One URDF link and its inertial properties.
 
-    def __init__(self, name, mass=0.0, com=(0.0, 0.0, 0.0)):
+    `inertia` is the tensor about the centre of mass, in the link frame.
+    """
+
+    def __init__(self, name, mass=0.0, com=(0.0, 0.0, 0.0), inertia=None):
         self.name = name
         self.mass = mass
         self.com = list(com)
+        self.inertia = [row[:] for row in inertia] if inertia else [[0.0] * 3 for _ in range(3)]
 
 
 class ArmModel:
@@ -158,13 +162,22 @@ class ArmModel:
         links = {}
         for element in root_element.findall('link'):
             inertial = element.find('inertial')
-            mass, com = 0.0, (0.0, 0.0, 0.0)
+            mass, com, tensor = 0.0, (0.0, 0.0, 0.0), None
             if inertial is not None:
                 mass = float(inertial.find('mass').get('value'))
                 origin = inertial.find('origin')
                 if origin is not None:
                     com = tuple(float(v) for v in (origin.get('xyz') or '0 0 0').split())
-            links[element.get('name')] = Link(element.get('name'), mass, com)
+                entry = inertial.find('inertia')
+                if entry is not None:
+                    def value(key):
+                        return float(entry.get(key, 0.0))
+                    tensor = [
+                        [value('ixx'), value('ixy'), value('ixz')],
+                        [value('ixy'), value('iyy'), value('iyz')],
+                        [value('ixz'), value('iyz'), value('izz')],
+                    ]
+            links[element.get('name')] = Link(element.get('name'), mass, com, tensor)
 
         joints = []
         for element in root_element.findall('joint'):
@@ -309,6 +322,179 @@ class ArmModel:
                 found.add(joint.child)
                 stack.append(joint.child)
         return found
+
+    # -- dynamics ----------------------------------------------------------
+
+    def _composite_bodies(self, payload: float = 0.0,
+                          payload_link: Optional[str] = None) -> Dict[str, tuple]:
+        """Merge every fixed-attached link into the moving link that carries it.
+
+        The drives, the flange frame and the gripper plate cannot move relative
+        to their parent, so for dynamics they are one rigid body with it - the
+        same reduction a physics engine performs.  Returns, per moving link:
+        (mass, centre of mass in the link frame, inertia about that centre).
+        """
+        by_parent: Dict[str, List[Joint]] = {}
+        for joint in self.joints.values():
+            by_parent.setdefault(joint.parent, []).append(joint)
+
+        tip = payload_link or self.tip
+        bodies = {}
+        for joint in self._chain_to(self.tip):
+            if not joint.movable:
+                continue
+            root = joint.child
+
+            # Walk the fixed sub-tree, carrying each body's transform.
+            identity = pose_from(rotation_from_rpy(0, 0, 0), [0.0, 0.0, 0.0])
+            parts, stack = [], [(root, identity)]
+            while stack:
+                name, transform = stack.pop()
+                link = self.links.get(name)
+                if link is not None and link.mass > 0.0:
+                    parts.append((link.mass, transform, link.com, link.inertia))
+                if payload > 0.0 and name == tip:
+                    parts.append((payload, transform, [0.0, 0.0, 0.0],
+                                  [[0.0] * 3 for _ in range(3)]))
+                for child in by_parent.get(name, []):
+                    if child.movable:
+                        continue        # a new body starts at the next joint
+                    stack.append((child.child, compose(transform, child.origin)))
+
+            mass = sum(part[0] for part in parts)
+            if mass <= 0.0:
+                bodies[root] = (0.0, [0.0, 0.0, 0.0], [[0.0] * 3 for _ in range(3)])
+                continue
+
+            placed = []
+            for part_mass, transform, com, inertia in parts:
+                centre = [sum(transform[i][k] * com[k] for k in range(3)) + transform[i][3]
+                          for i in range(3)]
+                rotation = [row[:3] for row in transform[:3]]
+                placed.append((part_mass, centre, rotation, inertia))
+
+            centre_of_mass = [sum(m * c[i] for m, c, _, _ in placed) / mass for i in range(3)]
+
+            tensor = [[0.0] * 3 for _ in range(3)]
+            for part_mass, centre, rotation, inertia in placed:
+                rotated = [[sum(rotation[i][a] * inertia[a][b] * rotation[j][b]
+                                for a in range(3) for b in range(3))
+                            for j in range(3)] for i in range(3)]
+                offset = [centre[i] - centre_of_mass[i] for i in range(3)]
+                squared = sum(v * v for v in offset)
+                for i in range(3):
+                    for j in range(3):
+                        shift = part_mass * ((squared if i == j else 0.0)
+                                             - offset[i] * offset[j])
+                        tensor[i][j] += rotated[i][j] + shift
+
+            bodies[root] = (mass, centre_of_mass, tensor)
+        return bodies
+
+    def inverse_dynamics(self, q: Sequence[float],
+                         qd: Optional[Sequence[float]] = None,
+                         qdd: Optional[Sequence[float]] = None,
+                         payload: float = 0.0,
+                         gravity: bool = True) -> List[float]:
+        """Joint torques [Nm] for a state and an acceleration.
+
+        Recursive Newton-Euler in the base frame: a forward pass propagates
+        velocity and acceleration out to the tip, a backward pass carries the
+        forces and moments back, and each joint takes the component along its
+        own axis.  Gravity enters as an upward acceleration of the base, which
+        is the standard trick and keeps one code path for both.
+        """
+        count = len(self.joint_names)
+        qd = list(qd) if qd is not None else [0.0] * count
+        qdd = list(qdd) if qdd is not None else [0.0] * count
+        if not (len(q) == len(qd) == len(qdd) == count):
+            raise ValueError(f'expected {count} values for q, qd and qdd')
+
+        poses = self.link_poses(q)
+        bodies = self._composite_bodies(payload)
+        chain = [j for j in self._chain_to(self.tip) if j.movable]
+
+        # --- forward: velocity and acceleration, base to tip ---------------
+        omega = [0.0, 0.0, 0.0]
+        alpha = [0.0, 0.0, 0.0]
+        joint_accel = [0.0, 0.0, GRAVITY] if gravity else [0.0, 0.0, 0.0]
+        previous_origin = translation_of(poses[self.root])
+
+        states = []
+        for index, joint in enumerate(chain):
+            frame = compose(poses[joint.parent], joint.origin)
+            origin = translation_of(frame)
+            axis = [sum(frame[i][k] * joint.axis[k] for k in range(3)) for i in range(3)]
+            norm = math.sqrt(sum(v * v for v in axis)) or 1.0
+            axis = [v / norm for v in axis]
+
+            step = [origin[i] - previous_origin[i] for i in range(3)]
+            joint_accel = [joint_accel[i]
+                           + cross(alpha, step)[i]
+                           + cross(omega, cross(omega, step))[i] for i in range(3)]
+
+            spin = [axis[i] * qd[index] for i in range(3)]
+            new_alpha = [alpha[i] + axis[i] * qdd[index] + cross(omega, spin)[i]
+                         for i in range(3)]
+            new_omega = [omega[i] + spin[i] for i in range(3)]
+
+            mass, com_local, inertia_local = bodies[joint.child]
+            child = poses[joint.child]
+            centre = [sum(child[i][k] * com_local[k] for k in range(3)) + child[i][3]
+                      for i in range(3)]
+            rotation = [row[:3] for row in child[:3]]
+            inertia = [[sum(rotation[i][a] * inertia_local[a][b] * rotation[j][b]
+                            for a in range(3) for b in range(3))
+                        for j in range(3)] for i in range(3)]
+
+            lever = [centre[i] - origin[i] for i in range(3)]
+            centre_accel = [joint_accel[i]
+                            + cross(new_alpha, lever)[i]
+                            + cross(new_omega, cross(new_omega, lever))[i] for i in range(3)]
+
+            states.append({
+                'axis': axis, 'origin': origin, 'centre': centre, 'mass': mass,
+                'inertia': inertia, 'omega': new_omega, 'alpha': new_alpha,
+                'accel': centre_accel,
+            })
+            omega, alpha, previous_origin = new_omega, new_alpha, origin
+
+        # --- backward: forces and moments, tip to base ---------------------
+        force = [0.0, 0.0, 0.0]
+        moment = [0.0, 0.0, 0.0]
+        next_origin = None
+        torques = [0.0] * count
+
+        for index in range(len(chain) - 1, -1, -1):
+            state = states[index]
+            net_force = [state['mass'] * state['accel'][i] for i in range(3)]
+            spin = [sum(state['inertia'][i][k] * state['omega'][k] for k in range(3))
+                    for i in range(3)]
+            net_moment = [sum(state['inertia'][i][k] * state['alpha'][k] for k in range(3))
+                          + cross(state['omega'], spin)[i] for i in range(3)]
+
+            lever = [state['centre'][i] - state['origin'][i] for i in range(3)]
+            carried = ([next_origin[i] - state['origin'][i] for i in range(3)]
+                       if next_origin is not None else [0.0, 0.0, 0.0])
+
+            moment = [moment[i] + cross(lever, net_force)[i] + cross(carried, force)[i]
+                      + net_moment[i] for i in range(3)]
+            force = [force[i] + net_force[i] for i in range(3)]
+
+            torques[index] = dot(state['axis'], moment)
+            next_origin = state['origin']
+
+        return torques
+
+    def mass_matrix(self, q: Sequence[float], payload: float = 0.0) -> List[List[float]]:
+        """Joint-space inertia matrix M(q), by unit accelerations with gravity off."""
+        count = len(self.joint_names)
+        columns = []
+        for index in range(count):
+            unit = [0.0] * count
+            unit[index] = 1.0
+            columns.append(self.inverse_dynamics(q, qdd=unit, payload=payload, gravity=False))
+        return [[columns[j][i] for j in range(count)] for i in range(count)]
 
     # -- properties of the machine ----------------------------------------
 

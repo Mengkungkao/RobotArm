@@ -42,9 +42,9 @@ safety_monitor:
     # robot_arm_description/config/robot.yaml; the monitor warns at start-up
     # when a value here is wider than the URDF limit.
     limits:
-      joint_1: {min_position: -2.9671, max_position: 2.9671, max_velocity: 5.0265, max_effort: 300.0}
-      joint_2: {min_position: -1.7453, max_position: 2.3562, max_velocity: 4.1888, max_effort: 300.0}
-      joint_3: {min_position: -3.4907, max_position: 1.2217, max_velocity: 5.1836, max_effort: 150.0}
+      joint_1: {min_position: -2.9671, max_position: 2.9671, max_velocity: 5.0265, max_effort: 350.0}
+      joint_2: {min_position: -1.7453, max_position: 2.3562, max_velocity: 4.1888, max_effort: 450.0}
+      joint_3: {min_position: -3.4907, max_position: 1.2217, max_velocity: 5.1836, max_effort: 200.0}
       joint_4: {min_position: -4.7124, max_position: 4.7124, max_velocity: 6.9813, max_effort: 40.0}
       joint_5: {min_position: -2.2689, max_position: 2.2689, max_velocity: 7.0686, max_effort: 40.0}
       joint_6: {min_position: -6.9813, max_position: 6.9813, max_velocity: 10.472, max_effort: 20.0}

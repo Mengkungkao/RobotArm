@@ -224,3 +224,133 @@ def test_the_drives_can_hold_the_rated_payload_anywhere(arm):
         assert worst[name] <= 0.75 * efforts[name], (
             f'{name} spends {100 * worst[name] / efforts[name]:.0f}% of its effort '
             f'limit just holding position, leaving nothing to move with')
+
+
+# ---------------------------------------------------------------------------
+# Dynamics: what the drives have to produce to move, not just to hold
+# ---------------------------------------------------------------------------
+
+def moveit_limits():
+    import yaml
+    here = os.path.dirname(os.path.abspath(__file__))
+    source = os.path.dirname(os.path.dirname(here))
+    path = os.path.join(source, 'robot_arm_moveit_config', 'config', 'joint_limits.yaml')
+    if not os.path.exists(path):
+        pytest.skip('robot_arm_moveit_config is not available')
+    with open(path) as handle:
+        return yaml.safe_load(handle)['joint_limits']
+
+
+def test_inverse_dynamics_at_rest_reproduces_the_static_solver(arm):
+    """Two independent implementations - a moment sum and recursive
+    Newton-Euler - must agree exactly when nothing is moving.  Either one
+    alone could be plausibly wrong; agreeing to machine precision is what
+    makes them trustworthy."""
+    for q in sample(arm, 100, seed=6):
+        static = arm.gravity_torque(q, payload=PAYLOAD)
+        recursive = arm.inverse_dynamics(q, payload=PAYLOAD)
+        for a, b in zip(static, recursive):
+            assert a == pytest.approx(b, abs=1e-9)
+
+
+def test_mass_matrix_is_symmetric(arm):
+    """M(q) is symmetric for any mechanism; asymmetry means the recursion is
+    wrong somewhere."""
+    for q in sample(arm, 8, seed=7):
+        matrix = arm.mass_matrix(q)
+        for i in range(len(matrix)):
+            for j in range(len(matrix)):
+                assert matrix[i][j] == pytest.approx(matrix[j][i], abs=1e-9)
+
+
+def test_mass_matrix_is_positive_definite(arm):
+    """Kinetic energy is positive for any motion, so qT M q > 0.  A violation
+    means some body has been given a negative or missing inertia."""
+    for q in sample(arm, 8, seed=8):
+        matrix = arm.mass_matrix(q)
+        random.seed(9)
+        for _ in range(20):
+            direction = [random.uniform(-1.0, 1.0) for _ in matrix]
+            energy = sum(direction[i] * matrix[i][j] * direction[j]
+                         for i in range(len(matrix)) for j in range(len(matrix)))
+            assert energy > 0.0
+
+
+def test_composite_bodies_conserve_the_arm_mass(arm):
+    """Merging the drives into the links that carry them may move mass around,
+    never create or lose it."""
+    bodies = arm._composite_bodies()
+    moving = sum(mass for mass, _, _ in bodies.values())
+    fixed = arm.links['base_link'].mass
+    assert moving + fixed == pytest.approx(arm.total_mass, abs=1e-9)
+
+
+def test_advertised_accelerations_are_deliverable(arm):
+    """The single most consequential number in joint_limits.yaml.
+
+    MoveIt trusts these to time-parameterise every trajectory.  Advertise an
+    acceleration the drive cannot produce and the planner emits motion the arm
+    cannot follow: it lags, the trajectory controller reports path tolerance
+    violations, and the simulation stops matching the machine.
+
+    Checked at the condition the limits were solved for: carrying the rated
+    payload, already moving at half of each joint's top speed, every joint
+    accelerating at once in the least favourable direction.
+    """
+    limits = moveit_limits()
+    efforts = arm.effort_limits()
+    accelerations = [limits[name]['max_acceleration'] for name in arm.joint_names]
+
+    worst = {name: 0.0 for name in arm.joint_names}
+    random.seed(10)
+    joint_limits = arm.limits()
+    for _ in range(400):
+        q = [random.uniform(*joint_limits[name]) for name in arm.joint_names]
+        qd = [random.uniform(-1.0, 1.0) * 0.5 * arm.joints[name].velocity
+              for name in arm.joint_names]
+        for direction in (1.0, -1.0):
+            qdd = [direction * value for value in accelerations]
+            torque = arm.inverse_dynamics(q, qd, qdd, payload=PAYLOAD)
+            for name, value in zip(arm.joint_names, torque):
+                worst[name] = max(worst[name], abs(value))
+
+    for name in arm.joint_names:
+        assert worst[name] <= efforts[name], (
+            f'{name} advertises {limits[name]["max_acceleration"]:.2f} rad/s^2 but '
+            f'reaching it needs {worst[name]:.1f} Nm from a {efforts[name]:.1f} Nm drive')
+
+
+def test_every_axis_can_sustain_its_top_speed(arm):
+    """A velocity limit is also a torque claim: the drive has to overcome
+    gravity and the centrifugal terms just to hold that speed, before it
+    accelerates at all."""
+    efforts = arm.effort_limits()
+    joint_limits = arm.limits()
+    random.seed(11)
+    for index, moving in enumerate(arm.joint_names):
+        worst = {name: 0.0 for name in arm.joint_names}
+        for _ in range(150):
+            q = [random.uniform(*joint_limits[name]) for name in arm.joint_names]
+            qd = [0.0] * len(arm.joint_names)
+            qd[index] = arm.joints[moving].velocity
+            torque = arm.inverse_dynamics(q, qd, payload=PAYLOAD)
+            for name, value in zip(arm.joint_names, torque):
+                worst[name] = max(worst[name], abs(value))
+        for name in arm.joint_names:
+            assert worst[name] <= efforts[name], (
+                f'running {moving} at its top speed needs {worst[name]:.1f} Nm from '
+                f'{name}, rated {efforts[name]:.1f} Nm')
+
+
+def test_accelerations_reach_top_speed_in_a_realistic_time(arm):
+    """Ramp times tell you whether the machine is the one it claims to be: an
+    industrial arm of this size reaches full speed in a fraction of a second,
+    and its heaviest axis is the slowest."""
+    limits = moveit_limits()
+    times = {name: arm.joints[name].velocity / limits[name]['max_acceleration']
+             for name in arm.joint_names}
+    for name, seconds in times.items():
+        assert 0.1 <= seconds <= 0.6, (
+            f'{name} takes {seconds:.2f} s from rest to full speed')
+    assert times['joint_2'] == max(times.values()), (
+        'the shoulder carries the most inertia, so it should be the slowest axis')

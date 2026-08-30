@@ -88,7 +88,7 @@ robot_arm_hardware:
       gear_ratio: 160.0
       encoder_direction: 1
       torque_constant: 0.14
-      max_current: 15.0
+      max_current: 17.0
       max_temperature: 75.0
     joint_2:
       motor_id: 2
@@ -96,7 +96,7 @@ robot_arm_hardware:
       gear_ratio: 160.0
       encoder_direction: 1
       torque_constant: 0.14
-      max_current: 15.0
+      max_current: 22.0
       max_temperature: 75.0
     joint_3:
       motor_id: 3
@@ -104,7 +104,7 @@ robot_arm_hardware:
       gear_ratio: 120.0
       encoder_direction: -1
       torque_constant: 0.11
-      max_current: 12.0
+      max_current: 16.0
       max_temperature: 75.0
     joint_4:
       motor_id: 4

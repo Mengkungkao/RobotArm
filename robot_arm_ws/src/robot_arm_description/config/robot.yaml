@@ -224,6 +224,11 @@ motors:
 #   axis 2  -100..135 deg, 240 deg/s    axis 5  +-130 deg, 405 deg/s
 #   axis 3  -200..70 deg, 297 deg/s     axis 6  +-400 deg, 600 deg/s
 #
+# The effort limits are sized so the arm can actually accelerate like that
+# machine and not merely hold itself up: scripts/solve_acceleration_limits.py
+# turns them into the MoveIt acceleration limits, and a test fails if the
+# advertised acceleration needs more torque than the drive can produce.
+#
 # The very same numbers are re-used by the MoveIt joint_limits.yaml and by the
 # safety layer, and tests fail the build if any of them drifts apart.
 # ---------------------------------------------------------------------------
@@ -233,7 +238,7 @@ joints:
     lower: -2.9671
     upper: 2.9671
     velocity: 5.0265
-    effort: 300.0
+    effort: 350.0
     damping: 2.00
     friction: 1.00
   joint_2:                  # shoulder
@@ -241,7 +246,7 @@ joints:
     lower: -1.7453
     upper: 2.3562
     velocity: 4.1888
-    effort: 300.0
+    effort: 450.0
     damping: 2.00
     friction: 1.00
   joint_3:                  # elbow
@@ -249,7 +254,7 @@ joints:
     lower: -3.4907
     upper: 1.2217
     velocity: 5.1836
-    effort: 150.0
+    effort: 200.0
     damping: 1.20
     friction: 0.60
   joint_4:                  # wrist rotation

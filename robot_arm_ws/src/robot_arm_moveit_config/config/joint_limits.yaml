@@ -1,11 +1,26 @@
 # ============================================================================
-#  Limits used by MoveIt for time parameterisation.
+#  Limits MoveIt uses for time parameterisation.
 #
-#  The velocity limits mirror robot_arm_description/config/robot.yaml (the
-#  URDF is the authority; a test in robot_arm_moveit_config fails if the two
-#  drift apart).  Acceleration and jerk limits do not exist in URDF at all, so
-#  they are defined here - they are what decides whether a trajectory is smooth
-#  enough for a geared arm to follow.
+#  VELOCITY mirrors robot_arm_description/config/robot.yaml, which is the
+#  authority; a test fails the build if the two drift apart.
+#
+#  ACCELERATION does not exist in URDF at all, and it is not a free choice: it
+#  is a claim about torque.  Whether a joint can reach a given acceleration
+#  depends on the inertia it sees - which changes across the workspace - plus
+#  gravity, the centrifugal terms and the payload.  These numbers come from
+#
+#      ros2 run robot_arm_description solve_acceleration_limits.py /tmp/arm.urdf
+#
+#  which evaluates tau = M(q) qdd + C(q, qd) qd + g(q) by recursive
+#  Newton-Euler over sampled states and finds the largest limits whose peak
+#  torque stays under 90% of each drive, while the arm is already moving at
+#  half of each joint's top speed and carrying its rated 5 kg.
+#
+#  The result is the profile of a real machine: 0.25 s from rest to full speed
+#  on every axis except the heavy shoulder, which takes 0.34 s.  A test
+#  re-checks that the drives can deliver what is advertised here, so raising a
+#  number without the torque to back it fails the build rather than producing
+#  trajectories the arm cannot follow.
 # ============================================================================
 
 # Scaling applied when a request does not specify its own.  Conservative on
@@ -18,35 +33,35 @@ joint_limits:
     has_velocity_limits: true
     max_velocity: 5.0265
     has_acceleration_limits: true
-    max_acceleration: 12.57
+    max_acceleration: 20.11
     has_jerk_limits: false
   joint_2:
     has_velocity_limits: true
     max_velocity: 4.1888
     has_acceleration_limits: true
-    max_acceleration: 10.47
+    max_acceleration: 12.42
     has_jerk_limits: false
   joint_3:
     has_velocity_limits: true
     max_velocity: 5.1836
     has_acceleration_limits: true
-    max_acceleration: 12.96
+    max_acceleration: 20.73
     has_jerk_limits: false
   joint_4:
     has_velocity_limits: true
     max_velocity: 6.9813
     has_acceleration_limits: true
-    max_acceleration: 17.45
+    max_acceleration: 27.93
     has_jerk_limits: false
   joint_5:
     has_velocity_limits: true
     max_velocity: 7.0686
     has_acceleration_limits: true
-    max_acceleration: 17.67
+    max_acceleration: 28.27
     has_jerk_limits: false
   joint_6:
     has_velocity_limits: true
     max_velocity: 10.4720
     has_acceleration_limits: true
-    max_acceleration: 26.18
+    max_acceleration: 41.89
     has_jerk_limits: false

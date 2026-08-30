@@ -134,9 +134,9 @@ robot_arm_ws/
 
 | Joint | Function | Axis | Range | Max velocity | Max effort |
 | --- | --- | --- | --- | --- | --- |
-| `joint_1` | base rotation | Z | ±170° | 5.03 rad/s | 300 Nm |
-| `joint_2` | shoulder | Y | -100° … +135° | 4.19 rad/s | 300 Nm |
-| `joint_3` | elbow | Y | -200° … +70° | 5.18 rad/s | 150 Nm |
+| `joint_1` | base rotation | Z | ±170° | 5.03 rad/s | 350 Nm |
+| `joint_2` | shoulder | Y | -100° … +135° | 4.19 rad/s | 450 Nm |
+| `joint_3` | elbow | Y | -200° … +70° | 5.18 rad/s | 200 Nm |
 | `joint_4` | wrist rotation | Z | ±270° | 6.98 rad/s | 40 Nm |
 | `joint_5` | wrist bend | Y | ±130° | 7.07 rad/s | 40 Nm |
 | `joint_6` | tool rotation | Z | ±400° | 10.47 rad/s | 20 Nm |
@@ -493,7 +493,7 @@ ros2 run robot_arm_description compute_inertia.py /tmp/arm.urdf config/robot.yam
 Masses stay a design input; the distribution comes from the geometry. A test
 regenerates the file and fails if a dimension changed without it.
 
-**Kinematics and statics.** `robot_arm_control.kinematics.ArmModel` reads the
+**Kinematics and dynamics.** `robot_arm_control.kinematics.ArmModel` reads the
 URDF with no ROS, no simulator and no solver, which is what makes the machine
 checkable:
 
@@ -501,10 +501,27 @@ checkable:
 from robot_arm_control.kinematics import ArmModel
 
 arm = ArmModel.from_urdf('/tmp/arm.urdf')
-arm.tool_pose(q)                      # 4x4 homogeneous, base -> tool0
-arm.jacobian(q)                       # 6xN geometric, linear rows then angular
-arm.gravity_torque(q, payload=5.0)    # Nm at each joint, holding still
+arm.tool_pose(q)                          # 4x4 homogeneous, base -> tool0
+arm.jacobian(q)                           # 6xN geometric, linear rows then angular
+arm.gravity_torque(q, payload=5.0)        # Nm at each joint, holding still
+arm.inverse_dynamics(q, qd, qdd, 5.0)     # Nm to move: recursive Newton-Euler
+arm.mass_matrix(q)                        # M(q), symmetric and positive definite
 ```
+
+**Acceleration limits.** URDF has no field for acceleration, so MoveIt's
+`joint_limits.yaml` is usually filled in by feel. Feel is wrong: an
+acceleration limit is a claim about torque. These are solved for:
+
+```bash
+ros2 run robot_arm_description solve_acceleration_limits.py /tmp/arm.urdf
+```
+
+It evaluates `tau = M(q) qdd + C(q, qd) qd + g(q)` over sampled states and
+finds the largest limits whose peak stays under 90% of each drive, while the
+arm already moves at half top speed carrying its rated 5 kg. The answer is the
+profile of a real machine — 0.25 s from rest to full speed on every axis
+except the heavy shoulder at 0.34 s — and a test fails the build if a limit is
+raised without the torque to back it.
 
 What the tests then assert about this arm:
 
@@ -514,7 +531,10 @@ What the tests then assert about this arm:
 | Reach from axis 2 | 0.94–1.02 m across the workspace |
 | Wrist | joints 4 and 6 leave the wrist centre fixed — genuinely spherical |
 | Jacobian | matches central differences of the pose it differentiates, linear and angular |
-| Worst static load, 5 kg payload | `joint_2` 152 Nm of 300 — 51%, leaving margin to accelerate |
+| Worst static load, 5 kg payload | `joint_2` 152 Nm of 450 — 34%, leaving margin to accelerate |
+| Advertised accelerations | deliverable within every effort limit, checked over sampled states |
+| Mass matrix | symmetric and positive definite everywhere |
+| Newton-Euler vs. the static solver | agree to 1e-14 Nm — two independent implementations |
 | Every tensor | positive definite and obeys the triangle inequality |
 
 The last one matters: a physics engine does not reject an impossible inertia,
