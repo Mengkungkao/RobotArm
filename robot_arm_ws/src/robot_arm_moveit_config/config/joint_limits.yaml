@@ -39,7 +39,7 @@ joint_limits:
     has_velocity_limits: true
     max_velocity: 4.1888
     has_acceleration_limits: true
-    max_acceleration: 12.42
+    max_acceleration: 12.03
     has_jerk_limits: false
   joint_3:
     has_velocity_limits: true

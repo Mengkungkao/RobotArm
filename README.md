@@ -506,6 +506,10 @@ arm.jacobian(q)                           # 6xN geometric, linear rows then angu
 arm.gravity_torque(q, payload=5.0)        # Nm at each joint, holding still
 arm.inverse_dynamics(q, qd, qdd, 5.0)     # Nm to move: recursive Newton-Euler
 arm.mass_matrix(q)                        # M(q), symmetric and positive definite
+
+arm.load_drivetrain('config/hardware.yaml')   # attach motors, gearing, losses
+arm.deliverable_effort()                      # Nm each drive can actually make
+arm.currents_for(tau)                         # A the drive must pull for that
 ```
 
 **Acceleration limits.** URDF has no field for acceleration, so MoveIt's
@@ -523,6 +527,82 @@ profile of a real machine — 0.25 s from rest to full speed on every axis
 except the heavy shoulder at 0.34 s — and a test fails the build if a limit is
 raised without the torque to back it.
 
+**Friction and gearbox losses.** A motor's catalogue torque is not what arrives
+at the joint. Two things stand between them, and both are now in the model
+rather than assumed away:
+
+*Losses.* A 160:1 reducer is not free. `hardware.yaml` carries a per-joint
+`efficiency`, and the torque a drive can deliver is
+`torque_constant x gear_ratio x max_current x efficiency`. Adding that term
+found a real fault: **every joint was short of its rated effort** — `joint_2`
+could make 394 Nm against the 450 Nm the URDF advertised, so the planner was
+free to ask for torque the machine could not produce. The drives are resized to
+close it, and a test now fails the build if a rating outruns the hardware
+behind it:
+
+| Axis | Reducer | η | Current | Delivers | Rated |
+| --- | --- | --- | --- | --- | --- |
+| joint_1 | 160:1 | 0.80 | 22.0 A | 394 Nm | 350 Nm |
+| joint_2 | 160:1 | 0.80 | 28.0 A | 502 Nm | 450 Nm |
+| joint_3 | 120:1 | 0.80 | 21.0 A | 222 Nm | 200 Nm |
+| joint_4 | 80:1 | 0.85 | 9.5 A | 45 Nm | 40 Nm |
+| joint_5 | 80:1 | 0.85 | 9.5 A | 45 Nm | 40 Nm |
+| joint_6 | 55:1 | 0.85 | 7.0 A | 23 Nm | 20 Nm |
+
+*Friction.* Each joint's URDF `<dynamics>` block gives a viscous coefficient
+and a Coulomb term, and `inverse_dynamics` adds them — including breakaway,
+where a joint at rest but about to move pays static friction in the direction
+it is accelerating. The effect turned out to be small on this arm, about 3% of
+peak torque at full speed; only `joint_2`'s acceleration limit moved, 12.42 to
+12.03 rad/s². That is worth knowing either way: friction is now measured
+instead of hoped about, and `include_friction=False` recovers the ideal model
+for anything that needs it (the mass matrix, for one).
+
+**Duty cycle.** Peak torque sizes the drive against stalling; RMS torque sizes
+it against melting. A motor that survives 500 Nm for 200 ms will cook at 200 Nm
+held for a minute, so the analyser runs a full pick-and-place cycle — approach,
+grasp, lift, traverse, place, retract, with the payload attached only for the
+legs that carry it — over a synchronised trapezoidal profile, and reports both:
+
+```bash
+ros2 run robot_arm_control analyse_duty_cycle.py /tmp/arm.urdf \
+    --hardware  $(ros2 pkg prefix robot_arm_hardware)/share/robot_arm_hardware/config/hardware.yaml \
+    --limits    $(ros2 pkg prefix robot_arm_moveit_config)/share/robot_arm_moveit_config/config/joint_limits.yaml
+```
+
+```
+pick-and-place cycle: 3.36 s, 681 samples, 5.0 kg payload
+
+joint      peak Nm  of peak   RMS Nm  of cont   RMS A   peak W      Wh  verdict
+joint_1      135.3     34%     31.8     24%     1.8      842   0.028  ok
+joint_2      269.4     54%    106.1     62%     5.9      609   0.055  ok
+joint_3      105.2     47%     32.5     44%     3.1      156   0.017  ok
+joint_4        7.2     16%      1.7     11%     0.4        1   0.000  ok
+joint_5        7.5     17%      2.9     19%     0.6        9   0.000  ok
+joint_6        0.0      0%      0.0      0%     0.0        0   0.000  ok
+
+cycle energy 0.102 Wh, 1070 cycles/hour, 109 W average
+thermally hardest axis: joint_2 at 62% of its continuous rating
+```
+
+Power is mechanical `tau x qd` plus the I²R copper loss the current implies, so
+the watts are what the cabinet has to supply, not what the load consumes.
+`--payload`, `--velocity-scale` and `--acceleration-scale` ask the useful
+questions:
+
+| Case | Hardest axis | Average power | Cycles/hour |
+| --- | --- | --- | --- |
+| 5 kg rated, full speed | `joint_2`, 62% continuous | 109 W | 1070 |
+| 15 kg overload, full speed | `joint_2`, 93% continuous | 157 W | 1070 |
+| 5 kg at 30% speed | `joint_2`, 41% continuous | 31 W | 584 |
+
+The middle row is the interesting one. At 15 kg the arm still *moves* — nothing
+saturates — but `joint_3` reaches 97% of peak torque and `joint_2` sits at 93%
+of continuous, which is a machine running with no thermal headroom rather than
+a machine that works. The rated payload is 5 kg for a reason, and this is
+where that number comes from. `--csv` writes the per-sample trace if you want
+to see which part of the cycle costs it.
+
 What the tests then assert about this arm:
 
 | Property | Result |
@@ -532,10 +612,13 @@ What the tests then assert about this arm:
 | Wrist | joints 4 and 6 leave the wrist centre fixed — genuinely spherical |
 | Jacobian | matches central differences of the pose it differentiates, linear and angular |
 | Worst static load, 5 kg payload | `joint_2` 152 Nm of 450 — 34%, leaving margin to accelerate |
+| Every drive, after gearbox losses | delivers at least its rated effort — 1.11x to 1.15x |
 | Advertised accelerations | deliverable within every effort limit, checked over sampled states |
 | Mass matrix | symmetric and positive definite everywhere |
 | Newton-Euler vs. the static solver | agree to 1e-14 Nm — two independent implementations |
 | Every tensor | positive definite and obeys the triangle inequality |
+| Rated duty cycle | thermally sustainable: no axis above its continuous rating |
+| RMS torque | never exceeds peak, on every axis, in every case |
 
 The last one matters: a physics engine does not reject an impossible inertia,
 it goes unstable instead.

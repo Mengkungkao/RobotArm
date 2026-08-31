@@ -88,7 +88,10 @@ robot_arm_hardware:
       gear_ratio: 160.0
       encoder_direction: 1
       torque_constant: 0.14
-      max_current: 17.0
+      max_current: 22.0
+      efficiency: 0.8
+      continuous_current: 7.5
+      winding_resistance: 0.15
       max_temperature: 75.0
     joint_2:
       motor_id: 2
@@ -96,7 +99,10 @@ robot_arm_hardware:
       gear_ratio: 160.0
       encoder_direction: 1
       torque_constant: 0.14
-      max_current: 22.0
+      max_current: 28.0
+      efficiency: 0.8
+      continuous_current: 9.5
+      winding_resistance: 0.15
       max_temperature: 75.0
     joint_3:
       motor_id: 3
@@ -104,7 +110,10 @@ robot_arm_hardware:
       gear_ratio: 120.0
       encoder_direction: -1
       torque_constant: 0.11
-      max_current: 16.0
+      max_current: 21.0
+      efficiency: 0.8
+      continuous_current: 7.0
+      winding_resistance: 0.25
       max_temperature: 75.0
     joint_4:
       motor_id: 4
@@ -112,7 +121,10 @@ robot_arm_hardware:
       gear_ratio: 80.0
       encoder_direction: 1
       torque_constant: 0.07
-      max_current: 8.0
+      max_current: 9.5
+      efficiency: 0.85
+      continuous_current: 3.2
+      winding_resistance: 0.6
       max_temperature: 70.0
     joint_5:
       motor_id: 5
@@ -120,7 +132,10 @@ robot_arm_hardware:
       gear_ratio: 80.0
       encoder_direction: 1
       torque_constant: 0.07
-      max_current: 8.0
+      max_current: 9.5
+      efficiency: 0.85
+      continuous_current: 3.2
+      winding_resistance: 0.6
       max_temperature: 70.0
     joint_6:
       motor_id: 6
@@ -128,5 +143,8 @@ robot_arm_hardware:
       gear_ratio: 55.0
       encoder_direction: -1
       torque_constant: 0.07
-      max_current: 6.0
+      max_current: 7.0
+      efficiency: 0.85
+      continuous_current: 2.4
+      winding_resistance: 0.9
       max_temperature: 70.0

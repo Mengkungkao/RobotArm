@@ -95,7 +95,12 @@ endif()
 # Python API
 # ---------------------------------------------------------------------------
 ament_python_install_package(${PROJECT_NAME})
-install(PROGRAMS examples/python_api_demo.py DESTINATION lib/${PROJECT_NAME})
+install(
+  PROGRAMS
+    examples/python_api_demo.py
+    scripts/analyse_duty_cycle.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 # ---------------------------------------------------------------------------
 # Data
@@ -113,6 +118,9 @@ if(BUILD_TESTING)
     TIMEOUT 120 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   # Kinematics, the Jacobian and the static load the drives have to hold.
   ament_add_pytest_test(test_kinematics test/test_kinematics.py
+    TIMEOUT 180 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  # Motion profiles and what a real duty cycle costs the drives.
+  ament_add_pytest_test(test_duty_cycle test/test_duty_cycle.py
     TIMEOUT 180 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
 

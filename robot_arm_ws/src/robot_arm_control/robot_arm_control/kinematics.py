@@ -30,7 +30,8 @@ import math
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Sequence
 
-__all__ = ['ArmModel', 'Joint', 'Link', 'GRAVITY']
+__all__ = ['ArmModel', 'Drive', 'Joint', 'Link', 'GRAVITY',
+           'trapezoidal_profile']
 
 GRAVITY = 9.80665
 
@@ -90,6 +91,67 @@ def dot(a: Sequence[float], b: Sequence[float]) -> float:
     return sum(x * y for x, y in zip(a, b))
 
 
+def trapezoidal_profile(start: Sequence[float], end: Sequence[float],
+                        velocity_limits: Sequence[float],
+                        acceleration_limits: Sequence[float],
+                        timestep: float = 0.01) -> List[tuple]:
+    """Synchronised point-to-point motion, as (t, q, qd, qdd) samples.
+
+    All joints follow one path parameter s: 0 -> 1, so they start and finish
+    together and the path is a straight line in joint space.  The bounds on s
+    come from whichever joint is tightest,
+
+        sd_max  = min_i (velocity_i     / |dq_i|)
+        sdd_max = min_i (acceleration_i / |dq_i|)
+
+    which guarantees every joint respects its own limits without any of them
+    being scaled after the fact.  Short moves get a triangular profile, where
+    the joint never reaches its speed limit before it has to slow down.
+
+    This is the shape a trajectory controller actually executes, which is what
+    makes an RMS figure computed over it mean something.
+    """
+    deltas = [e - s for s, e in zip(start, end)]
+    span = max(abs(d) for d in deltas) if deltas else 0.0
+    if span < 1e-12:
+        return [(0.0, list(start), [0.0] * len(start), [0.0] * len(start))]
+
+    rate = min(limit / abs(delta) for limit, delta in zip(velocity_limits, deltas)
+               if abs(delta) > 1e-12)
+    accel = min(limit / abs(delta) for limit, delta in zip(acceleration_limits, deltas)
+                if abs(delta) > 1e-12)
+
+    ramp = rate / accel                     # time to reach full rate
+    if accel * ramp * ramp >= 1.0:          # triangular: no cruise phase
+        ramp = math.sqrt(1.0 / accel)
+        rate = accel * ramp
+        cruise = 0.0
+    else:
+        cruise = (1.0 - accel * ramp * ramp) / rate
+    duration = 2.0 * ramp + cruise
+
+    samples = []
+    steps = max(2, int(math.ceil(duration / timestep)) + 1)
+    for index in range(steps):
+        t = min(duration, index * timestep)
+        if t < ramp:
+            s, sd, sdd = 0.5 * accel * t * t, accel * t, accel
+        elif t < ramp + cruise:
+            elapsed = t - ramp
+            s, sd, sdd = 0.5 * accel * ramp * ramp + rate * elapsed, rate, 0.0
+        else:
+            remaining = duration - t
+            s = 1.0 - 0.5 * accel * remaining * remaining
+            sd, sdd = accel * remaining, -accel
+        samples.append((
+            t,
+            [a + d * s for a, d in zip(start, deltas)],
+            [d * sd for d in deltas],
+            [d * sdd for d in deltas],
+        ))
+    return samples
+
+
 # ---------------------------------------------------------------------------
 # The model
 # ---------------------------------------------------------------------------
@@ -97,7 +159,8 @@ def dot(a: Sequence[float], b: Sequence[float]) -> float:
 class Joint:
     """One URDF joint: its fixed offset, its axis and its limits."""
 
-    def __init__(self, name, kind, parent, child, xyz, rpy, axis, limits):
+    def __init__(self, name, kind, parent, child, xyz, rpy, axis, limits,
+                 damping=0.0, friction=0.0):
         self.name = name
         self.kind = kind
         self.parent = parent
@@ -105,6 +168,26 @@ class Joint:
         self.origin = pose_from(rotation_from_rpy(*rpy), xyz)
         self.axis = axis
         self.lower, self.upper, self.velocity, self.effort = limits
+        # URDF <dynamics>: viscous [Nm s/rad] and Coulomb [Nm], joint side.
+        self.damping = damping
+        self.friction = friction
+
+    def friction_torque(self, velocity: float, acceleration: float = 0.0,
+                        breakaway: bool = True) -> float:
+        """Torque lost to friction, opposing the motion [Nm].
+
+        Viscous grows with speed; Coulomb is constant and opposes whichever
+        way the joint turns.  At a standstill the direction is undefined, so
+        `breakaway` charges it against the acceleration instead - starting
+        from rest costs static friction before anything moves, which is
+        exactly the case a sizing study must not miss.
+        """
+        loss = self.damping * velocity
+        if abs(velocity) > 1e-6:
+            loss += math.copysign(self.friction, velocity)
+        elif breakaway and abs(acceleration) > 1e-9:
+            loss += math.copysign(self.friction, acceleration)
+        return loss
 
     @property
     def movable(self) -> bool:
@@ -119,6 +202,60 @@ class Joint:
             spin = rotation_about_axis(self.axis, value)
             return compose(self.origin, pose_from(spin, [0.0, 0.0, 0.0]))
         return self.origin
+
+
+class Drive:
+    """The motor and reducer behind one joint.
+
+    Everything here is about the difference between motor side and joint side.
+    A reducer multiplies torque by its ratio and loses a share of it, so the
+    joint-side torque a drive can deliver is
+
+        kt * gear_ratio * current * efficiency
+
+    and the current needed for a joint torque is that relation inverted.
+    Dropping the efficiency term overstates every axis by 1/efficiency, which
+    at these ratios is about 25%.
+    """
+
+    def __init__(self, name, torque_constant, gear_ratio, max_current,
+                 efficiency=1.0, continuous_current=None, winding_resistance=0.0):
+        self.name = name
+        self.torque_constant = torque_constant
+        self.gear_ratio = gear_ratio
+        self.max_current = max_current
+        self.efficiency = efficiency
+        # Servos are rated for a peak they may not hold; the continuous rating
+        # is what an RMS duty cycle has to stay under.  A third of peak is the
+        # usual relation when the datasheet does not say.
+        self.continuous_current = (continuous_current if continuous_current
+                                   else max_current / 3.0)
+        # Phase resistance, for the I^2 R loss that dominates the power draw.
+        self.winding_resistance = winding_resistance
+
+    def deliverable_torque(self) -> float:
+        """Joint-side torque at the peak current, after losses [Nm]."""
+        return (self.torque_constant * self.gear_ratio * self.max_current
+                * self.efficiency)
+
+    def continuous_torque(self) -> float:
+        """Joint-side torque the drive can hold indefinitely [Nm]."""
+        return (self.torque_constant * self.gear_ratio * self.continuous_current
+                * self.efficiency)
+
+    def current_for(self, joint_torque: float) -> float:
+        """Motor current needed to produce a joint-side torque [A].
+
+        Conservative: the driving direction, where the losses work against the
+        motor.  Back-driving costs less, and sizing on the cheaper case is how
+        an axis ends up undersized.
+        """
+        denominator = self.torque_constant * self.gear_ratio * self.efficiency
+        return abs(joint_torque) / denominator if denominator > 0 else 0.0
+
+    def motor_speed(self, joint_velocity: float) -> float:
+        """Motor shaft speed for a joint speed [rad/s]."""
+        return joint_velocity * self.gear_ratio
 
 
 class Link:
@@ -143,6 +280,7 @@ class ArmModel:
         self.joints = {joint.name: joint for joint in joints}
         self.root = root
         self.tip = tip
+        self.drives: Dict[str, 'Drive'] = {}
         self._children: Dict[str, List[Joint]] = {}
         for joint in joints:
             self._children.setdefault(joint.parent, []).append(joint)
@@ -195,10 +333,13 @@ class ArmModel:
                       float(limit.get('upper', math.pi)) if limit is not None else math.pi,
                       float(limit.get('velocity', 0.0)) if limit is not None else 0.0,
                       float(limit.get('effort', 0.0)) if limit is not None else 0.0)
+            dynamics = element.find('dynamics')
+            damping = float(dynamics.get('damping', 0.0)) if dynamics is not None else 0.0
+            friction = float(dynamics.get('friction', 0.0)) if dynamics is not None else 0.0
             joints.append(Joint(
                 element.get('name'), element.get('type'),
                 element.find('parent').get('link'), element.find('child').get('link'),
-                xyz, rpy, axis, limits))
+                xyz, rpy, axis, limits, damping, friction))
 
         parented = {joint.child for joint in joints}
         roots = [name for name in links if name not in parented]
@@ -395,7 +536,8 @@ class ArmModel:
                          qd: Optional[Sequence[float]] = None,
                          qdd: Optional[Sequence[float]] = None,
                          payload: float = 0.0,
-                         gravity: bool = True) -> List[float]:
+                         gravity: bool = True,
+                         include_friction: bool = True) -> List[float]:
         """Joint torques [Nm] for a state and an acceleration.
 
         Recursive Newton-Euler in the base frame: a forward pass propagates
@@ -484,6 +626,9 @@ class ArmModel:
             torques[index] = dot(state['axis'], moment)
             next_origin = state['origin']
 
+        if include_friction:
+            for index, joint in enumerate(chain):
+                torques[index] += joint.friction_torque(qd[index], qdd[index])
         return torques
 
     def mass_matrix(self, q: Sequence[float], payload: float = 0.0) -> List[List[float]]:
@@ -493,10 +638,40 @@ class ArmModel:
         for index in range(count):
             unit = [0.0] * count
             unit[index] = 1.0
-            columns.append(self.inverse_dynamics(q, qdd=unit, payload=payload, gravity=False))
+            columns.append(self.inverse_dynamics(
+                q, qdd=unit, payload=payload, gravity=False, include_friction=False))
         return [[columns[j][i] for j in range(count)] for i in range(count)]
 
     # -- properties of the machine ----------------------------------------
+
+    def load_drivetrain(self, hardware_yaml: str) -> None:
+        """Attach motor and reducer data from robot_arm_hardware's config."""
+        import yaml
+        with open(hardware_yaml) as handle:
+            config = yaml.safe_load(handle)['robot_arm_hardware']['joints']
+        self.drives = {
+            name: Drive(
+                name,
+                entry['torque_constant'], entry['gear_ratio'], entry['max_current'],
+                entry.get('efficiency', 1.0), entry.get('continuous_current'),
+                entry.get('winding_resistance', 0.0))
+            for name, entry in config.items() if name in self.joint_names}
+
+    def deliverable_effort(self) -> Dict[str, float]:
+        """Joint-side torque each drive can actually produce, after losses.
+
+        Falls back to the URDF effort limit when no drivetrain is loaded.
+        """
+        if not getattr(self, 'drives', None):
+            return self.effort_limits()
+        return {name: self.drives[name].deliverable_torque() for name in self.joint_names}
+
+    def currents_for(self, torques: Sequence[float]) -> Dict[str, float]:
+        """Motor current each joint torque demands [A]."""
+        if not getattr(self, 'drives', None):
+            raise RuntimeError('no drivetrain loaded; call load_drivetrain() first')
+        return {name: self.drives[name].current_for(torque)
+                for name, torque in zip(self.joint_names, torques)}
 
     @property
     def total_mass(self) -> float:

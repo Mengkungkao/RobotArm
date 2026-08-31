@@ -163,13 +163,29 @@ def test_drives_can_deliver_the_rated_joint_effort(robot):
     for joint in JOINTS:
         drive = hardware['joints'][joint]
         effort = robot['joints'][joint]['effort']
-        stall_torque = drive['torque_constant'] * drive['gear_ratio'] * drive['max_current']
+        # Joint-side torque, so the gearbox losses come off it.  Using the
+        # lossless product overstates every axis by 1/efficiency - around 25%
+        # at these ratios - which is enough to promise torque that is not there.
+        stall_torque = (drive['torque_constant'] * drive['gear_ratio']
+                        * drive['max_current'] * drive['efficiency'])
         assert stall_torque >= effort, (
-            f'{joint}: the drive delivers {stall_torque:.1f} Nm at its current limit '
-            f'but the joint is rated {effort:.1f} Nm')
+            f'{joint}: the drive delivers {stall_torque:.1f} Nm at the joint after '
+            f'{drive["efficiency"]:.0%} gearbox efficiency, but the joint is rated '
+            f'{effort:.1f} Nm')
         # A drive with no headroom at all cannot accelerate the joint under load.
         assert stall_torque <= effort * 3.0, (
             f'{joint}: the drive is oversized for the configured effort limit')
+
+
+def test_every_drive_declares_a_realistic_gearbox_efficiency(robot):
+    """A reducer at these ratios is not lossless, and pretending otherwise is
+    the single easiest way to overstate what a machine can do."""
+    hardware = load('hardware.yaml', package='robot_arm_hardware')['robot_arm_hardware']
+    for joint in JOINTS:
+        efficiency = hardware['joints'][joint].get('efficiency')
+        assert efficiency is not None, f'{joint}: no gearbox efficiency declared'
+        assert 0.5 <= efficiency <= 0.95, (
+            f'{joint}: efficiency {efficiency} is outside the range real reducers reach')
 
 
 def test_gear_ratios_are_plausible_for_an_industrial_arm(robot):
