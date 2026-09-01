@@ -120,6 +120,61 @@ def test_rviz_launch_can_run_with_and_without_moveit():
     assert 'rviz_config' in arguments
 
 
+def test_rviz_can_bring_its_own_robot_and_sliders():
+    """`standalone:=true` has to supply everything RViz needs on its own.
+
+    A viewer with no description and no joint states draws nothing and fills
+    the log with "No transform from [link_1] to [world]", which reads like a
+    broken model rather than a missing publisher.
+    """
+    text = source('rviz.launch.py')
+    for expected in ('robot_state_publisher', 'static_transform_publisher',
+                     'joint_state_publisher_gui', 'joint_state_publisher'):
+        assert expected in text, f'rviz.launch.py standalone mode needs {expected}'
+    # The description is expanded the same way as everywhere else in the stack.
+    assert 'use_world_frame:=false' in text
+
+
+def test_rviz_sliders_stay_off_unless_asked_for():
+    """Only one thing may publish /joint_states.
+
+    When controllers are running the joint_state_broadcaster owns that topic,
+    and a second publisher makes the model flick between two sources.  So the
+    standalone nodes sit inside one group gated on `standalone`, and
+    `standalone` defaults to false.
+    """
+    import re
+    text = source('rviz.launch.py')
+    assert re.search(r'GroupAction\(\s*\n\s*condition=IfCondition\(standalone\)', text), \
+        'the standalone nodes must be gated as one group on `standalone`'
+    declared = dict(re.findall(
+        r"DeclareLaunchArgument\(\s*\n?\s*'([a-z_]+)',\s*default_value='([^']*)'", text))
+    assert declared.get('standalone') == 'false', \
+        'rviz.launch.py must attach to a running stack by default'
+    assert declared.get('use_gui') == 'true', \
+        'standalone mode is for posing the arm by hand, so default to sliders'
+
+
+def test_the_stack_never_asks_rviz_for_a_second_joint_state_source():
+    """bringup and the backends already publish /joint_states themselves."""
+    for name in ('bringup.launch.py', 'sim.launch.py', 'real.launch.py',
+                 'real_robot.launch.py', 'moveit.launch.py'):
+        assert "'standalone': 'true'" not in source(name), \
+            f'{name} would give RViz a second publisher on /joint_states'
+
+
+def test_the_viewer_packages_are_declared():
+    """A launch file that runs a node its package does not depend on works on
+    the machine that built it and nowhere else."""
+    package_xml = os.path.join(os.path.dirname(LAUNCH_DIR), 'package.xml')
+    with open(package_xml) as handle:
+        manifest = handle.read()
+    for expected in ('joint_state_publisher', 'joint_state_publisher_gui',
+                     'robot_state_publisher', 'tf2_ros', 'rviz2'):
+        assert f'<exec_depend>{expected}</exec_depend>' in manifest, \
+            f'robot_arm_bringup runs {expected} without depending on it'
+
+
 # ---------------------------------------------------------------------------
 # Invariants that only bite at run time
 # ---------------------------------------------------------------------------

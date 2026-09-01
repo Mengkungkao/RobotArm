@@ -363,6 +363,32 @@ ros2 launch robot_arm_bringup rviz.launch.py                    # model + TF + j
 ros2 launch robot_arm_bringup rviz.launch.py use_moveit:=true   # + MotionPlanning panel
 ```
 
+Both of those *attach*: something else — Gazebo, the real robot, or the mock
+backend — is already running the controllers, and the
+`joint_state_broadcaster` is publishing `/joint_states` for RViz to follow.
+
+With nothing else running, add `standalone:=true`:
+
+```bash
+ros2 launch robot_arm_bringup rviz.launch.py standalone:=true
+```
+
+That brings up the three things the rest of the stack would otherwise have
+provided — `robot_state_publisher`, the `world` → `base_link` frame, and
+`joint_state_publisher_gui` — so the RViz window comes up next to a slider
+panel with one slider per joint, limits read straight from the URDF, and the
+arm can be posed by hand with no controllers, no simulator and no hardware.
+It is the same thing `display.launch.py` does, available from the viewer you
+are already launching. `use_gui:=false` swaps the sliders for the headless
+`joint_state_publisher`, which holds every joint at zero — useful over ssh.
+
+**Only one thing may publish `/joint_states`.** That is why `standalone`
+defaults to false and why every node it starts sits in a single gated group:
+add it on top of a running stack and the model flicks between the sliders and
+the broadcaster, several times a second, which looks like a robot with a fault
+rather than two publishers arguing. A test pins both the default and the
+gating.
+
 The MoveIt configuration displays the robot model, TF, the planning scene,
 collision objects, the planned trajectory and the interactive goal marker. Drag
 the marker on `tool0`, then **Plan** and **Execute** in the MotionPlanning

@@ -74,14 +74,22 @@ def generate_launch_description():
             output='log',
             arguments=['--frame-id', 'world', '--child-frame-id', 'base_link'],
         ),
+        # The sliders: one per movable joint, limits read from the URDF,
+        # published on /joint_states for RViz to follow.
         Node(
             package='joint_state_publisher_gui',
             executable='joint_state_publisher_gui',
+            name='joint_state_publisher_gui',
+            output='screen',
             condition=IfCondition(LaunchConfiguration('use_gui')),
         ),
+        # Same topic, no window: holds every joint at zero.  Useful over ssh,
+        # and in tests.
         Node(
             package='joint_state_publisher',
             executable='joint_state_publisher',
+            name='joint_state_publisher',
+            output='screen',
             condition=UnlessCondition(LaunchConfiguration('use_gui')),
         ),
         Node(
