@@ -112,6 +112,12 @@ install(DIRECTORY config launch examples DESTINATION share/${PROJECT_NAME})
 # ---------------------------------------------------------------------------
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
+
+  # Style gate for this package's Python.  ament_flake8 uses its own bundled
+  # config (import-order-style = google), not any setup.cfg in the tree.
+  find_package(ament_cmake_flake8 REQUIRED)
+  ament_flake8()
+
   ament_add_pytest_test(test_config test/test_config.py
     TIMEOUT 60 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   ament_add_pytest_test(test_python_api test/test_python_api.py

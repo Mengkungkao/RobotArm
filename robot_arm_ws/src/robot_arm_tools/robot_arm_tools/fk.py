@@ -13,9 +13,9 @@ Forward kinematics: joint angles -> tool0 pose.
 import argparse
 import sys
 
-from .cli_common import (EXIT_FAILURE, EXIT_OK, JOINT_NAMES, add_common_arguments,
-                         add_joint_arguments, angle_unit, collect_joint_targets,
-                         format_angle, make_robot, run)
+from .cli_common import (add_common_arguments, add_joint_arguments, angle_unit,
+                         collect_joint_targets, EXIT_FAILURE, EXIT_OK, format_angle,
+                         JOINT_NAMES, make_robot, run)
 
 
 def build_parser() -> argparse.ArgumentParser:

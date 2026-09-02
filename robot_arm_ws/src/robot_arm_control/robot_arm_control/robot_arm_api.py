@@ -22,26 +22,26 @@ class still works and sends trajectories straight to the joint trajectory
 controller, which is useful for tests and for a minimal installation.
 """
 
+from dataclasses import dataclass, field
 import math
 import threading
 import time
-from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence
 
+# One alphabetical block: rclpy, the message packages and robot_arm_interfaces
+# are all third-party to this package, and the linter sorts them together.
+from builtin_interfaces.msg import Duration as DurationMsg
+from control_msgs.action import FollowJointTrajectory
+from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
 import rclpy
 from rclpy.action import ActionClient
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-
-from builtin_interfaces.msg import Duration as DurationMsg
-from control_msgs.action import FollowJointTrajectory
-from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
+from robot_arm_interfaces.srv import GetCalibration, SetEStop, SetMotorEnable
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-
-from robot_arm_interfaces.srv import GetCalibration, SetEStop, SetMotorEnable
 
 from .transforms import euler_from_quaternion, normalize_quaternion, quaternion_from_euler
 
@@ -268,10 +268,9 @@ class RobotArm:
         with self._joint_state_lock:
             message = self._joint_state
         result = JointStates(names=list(self.joint_names))
-        if message is None:
-            return result
-
-        index = {name: i for i, name in enumerate(message.name)}
+        # Before the first message every joint is unknown, which is NaN -- not an
+        # empty vector and not a stale zero.  Callers index these by joint.
+        index = {name: i for i, name in enumerate(message.name)} if message is not None else {}
         for name in self.joint_names:
             i = index.get(name)
             if i is None:

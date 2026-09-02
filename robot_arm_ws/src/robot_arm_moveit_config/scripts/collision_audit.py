@@ -29,11 +29,29 @@ pair", not as a verdict; a deep negative, far beyond the radii involved, is a
 real collision.
 """
 import math
+import os
 import random
 import sys
 import xml.etree.ElementTree as ET
 
-sys.path.insert(0, '/home/user/RobotArm/robot_arm_ws/src/robot_arm_description/scripts')
+# urdf_preview.py lives in robot_arm_description.  Find it whether this script
+# runs from the source tree or from the installed lib/ directory -- never from a
+# path baked in on whichever machine last edited this file.
+_HERE = os.path.dirname(os.path.realpath(__file__))
+_CANDIDATES = [os.path.join(_HERE, os.pardir, os.pardir, 'robot_arm_description', 'scripts')]
+try:
+    from ament_index_python.packages import get_package_prefix
+    _CANDIDATES.append(os.path.join(
+        get_package_prefix('robot_arm_description'), 'lib', 'robot_arm_description'))
+except Exception:      # noqa: BLE001 - ament is absent when run from a bare checkout
+    pass
+for _candidate in _CANDIDATES:
+    if os.path.isfile(os.path.join(_candidate, 'urdf_preview.py')):
+        sys.path.insert(0, _candidate)
+        break
+else:
+    sys.exit('cannot locate urdf_preview.py from robot_arm_description; '
+             'source the workspace or run this from the source tree')
 from urdf_preview import apply, axis_angle, mul, parse_origin  # noqa: E402
 
 

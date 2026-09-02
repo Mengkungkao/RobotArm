@@ -12,8 +12,8 @@ the joint angles would be.  Add --execute to move there afterwards.
 import argparse
 import sys
 
-from .cli_common import (EXIT_FAILURE, EXIT_OK, JOINT_NAMES, add_common_arguments,
-                         add_motion_arguments, angle_unit, format_angle, make_robot, run)
+from .cli_common import (add_common_arguments, add_motion_arguments, angle_unit, EXIT_FAILURE,
+                         EXIT_OK, format_angle, JOINT_NAMES, make_robot, run)
 
 
 def build_parser() -> argparse.ArgumentParser:

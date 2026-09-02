@@ -192,7 +192,8 @@ def test_condition_arguments_default_to_a_boolean(name):
     text = source(name)
     conditions = set(re.findall(
         r"(?:IfCondition|UnlessCondition)\(\s*LaunchConfiguration\(\s*'([a-z_]+)'", text))
-    conditions |= set(re.findall(r"condition=(?:IfCondition|UnlessCondition)\(([a-z_]+)\)", text))
+    conditions |= set(re.findall(
+        r'condition=(?:IfCondition|UnlessCondition)\(([a-z_]+)\)', text))
     declared = dict(re.findall(
         r"DeclareLaunchArgument\(\s*\n?\s*'([a-z_]+)',\s*default_value='([^']*)'", text))
 

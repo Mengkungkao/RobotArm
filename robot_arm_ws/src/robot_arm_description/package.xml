@@ -37,6 +37,7 @@
        selected (hardware_type:=real / gazebo).  A simulation-only or
        description-only workspace expands the model without them. -->
 
+  <test_depend>ament_cmake_flake8</test_depend>
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>python3-pytest</test_depend>
   <test_depend>urdfdom_py</test_depend>

@@ -18,9 +18,9 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from robot_arm_tools import cli_common     # noqa: E402
-from robot_arm_tools.cli_common import (JOINT_NAMES, EXIT_FAILURE, EXIT_INTERRUPTED,  # noqa: E402
-                                        EXIT_OK, EXIT_USAGE, collect_joint_targets,
-                                        format_angle, run)
+from robot_arm_tools.cli_common import (collect_joint_targets, EXIT_FAILURE,  # noqa: E402
+                                        EXIT_INTERRUPTED, EXIT_OK, EXIT_USAGE,
+                                        format_angle, JOINT_NAMES, run)
 
 
 def parse(module_name, argv):

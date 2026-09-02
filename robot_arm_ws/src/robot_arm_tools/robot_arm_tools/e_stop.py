@@ -17,7 +17,7 @@ cannot be relied on when the software itself is the thing that failed.
 import argparse
 import sys
 
-from .cli_common import EXIT_FAILURE, EXIT_OK, add_common_arguments, make_robot, run
+from .cli_common import add_common_arguments, EXIT_FAILURE, EXIT_OK, make_robot, run
 
 
 def build_parser() -> argparse.ArgumentParser:

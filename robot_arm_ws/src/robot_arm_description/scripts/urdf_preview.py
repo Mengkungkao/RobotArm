@@ -191,6 +191,9 @@ def main(urdf_path, out_path, joints_deg, view='xz'):
 
 
 if __name__ == '__main__':
+    if len(sys.argv) < 3:
+        sys.exit('usage: urdf_preview.py <expanded.urdf> <out.png> '
+                 '[j1,..,j6] [xz|xy|yz]')
     angles = [float(a) for a in sys.argv[3].split(',')] if len(sys.argv) > 3 else [0] * 6
     view = sys.argv[4] if len(sys.argv) > 4 else 'xz'
     main(sys.argv[1], sys.argv[2], angles, view)

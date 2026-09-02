@@ -12,6 +12,12 @@ if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   find_package(launch_testing_ament_cmake REQUIRED)
 
+  # Style gate for this package's Python.  ament_flake8 uses its own bundled
+  # config (import-order-style = google), not any setup.cfg in the tree.
+  find_package(ament_cmake_flake8 REQUIRED)
+  ament_flake8()
+
+
   # Structural checks on the launch files: fast, no robot involved.
   ament_add_pytest_test(test_launch_files test/test_launch_files.py
     TIMEOUT 120 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

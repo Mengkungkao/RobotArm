@@ -29,7 +29,7 @@ import math
 import sys
 import time
 
-from .cli_common import (EXIT_FAILURE, EXIT_OK, JOINT_NAMES, add_common_arguments,
+from .cli_common import (add_common_arguments, EXIT_FAILURE, EXIT_OK, JOINT_NAMES,
                          make_robot, run)
 
 

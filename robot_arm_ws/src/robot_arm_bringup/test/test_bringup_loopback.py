@@ -20,14 +20,14 @@ import os
 import time
 import unittest
 
+from ament_index_python.packages import get_package_share_directory
 import launch
+from launch.actions import IncludeLaunchDescription, TimerAction
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 import launch_testing
 import launch_testing.actions
 import pytest
 import rclpy
-from ament_index_python.packages import get_package_share_directory
-from launch.actions import IncludeLaunchDescription, TimerAction
-from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 JOINTS = ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6']
 

@@ -15,7 +15,7 @@ import math
 import sys
 import time
 
-from .cli_common import (EXIT_FAILURE, EXIT_OK, add_common_arguments, angle_unit,
+from .cli_common import (add_common_arguments, angle_unit, EXIT_FAILURE, EXIT_OK,
                          format_angle, make_robot, run)
 
 SAFETY_LEVELS = {0: 'OK', 1: 'WARN', 2: 'VIOLATION', 3: 'E-STOP'}
@@ -158,7 +158,7 @@ def print_status(robot, arguments) -> bool:
     pose = robot.get_current_pose_rpy()
     if pose is not None:
         print(
-            f"\n{robot.end_effector_frame} in {robot.base_frame}: "
+            f'\n{robot.end_effector_frame} in {robot.base_frame}: '
             f"x={pose['x']:.4f} y={pose['y']:.4f} z={pose['z']:.4f}  "
             f"rpy=({pose['roll']:.4f}, {pose['pitch']:.4f}, {pose['yaw']:.4f})")
 

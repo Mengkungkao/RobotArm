@@ -21,6 +21,12 @@ install(
 
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
+
+  # Style gate for this package's Python.  ament_flake8 uses its own bundled
+  # config (import-order-style = google), not any setup.cfg in the tree.
+  find_package(ament_cmake_flake8 REQUIRED)
+  ament_flake8()
+
   # Expands the Xacro model in every backend mode and validates the resulting
   # URDF (tree structure, joint limits, TF chain, inertial sanity).
   ament_add_pytest_test(test_urdf test/test_urdf.py

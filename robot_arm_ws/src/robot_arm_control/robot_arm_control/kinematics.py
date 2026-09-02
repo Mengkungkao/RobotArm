@@ -27,8 +27,8 @@ Pure Python on purpose - no numpy - so it runs anywhere the tests do.
 """
 
 import math
-import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Sequence
+import xml.etree.ElementTree as ET
 
 __all__ = ['ArmModel', 'Drive', 'Joint', 'Link', 'GRAVITY',
            'trapezoidal_profile']

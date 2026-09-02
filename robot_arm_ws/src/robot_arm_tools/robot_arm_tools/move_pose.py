@@ -13,7 +13,7 @@ Move the end effector to a Cartesian pose.
 import argparse
 import sys
 
-from .cli_common import (EXIT_FAILURE, EXIT_OK, add_common_arguments, add_motion_arguments,
+from .cli_common import (add_common_arguments, add_motion_arguments, EXIT_FAILURE, EXIT_OK,
                          make_robot, run)
 
 

@@ -28,6 +28,7 @@
   <exec_depend>robot_arm_description</exec_depend>
   <exec_depend>robot_arm_control</exec_depend>
 
+  <test_depend>ament_cmake_flake8</test_depend>
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>python3-pytest</test_depend>
 
